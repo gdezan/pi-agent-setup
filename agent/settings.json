@@ -1,0 +1,22 @@
+{
+  "lastChangelogVersion": "0.81.1",
+  "theme": "dark",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
+  "defaultThinkingLevel": "medium",
+  "packages": [
+    "npm:pi-mcp-adapter",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:pi-agent-browser-native",
+    "npm:@juicesharp/rpiv-advisor",
+    "local-packages/rpiv-todo-no-overlay",
+    "npm:pi-readseek",
+    "extensions/pi-workflow",
+    "git:github.com/DietrichGebert/ponytail",
+    "npm:@aliou/pi-guardrails"
+  ],
+  "hideThinkingBlock": false,
+  "compaction": {
+    "enabled": true
+  }
+}

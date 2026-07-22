@@ -1,0 +1,28 @@
+{
+  "roles": [
+    {
+      "id": "fast",
+      "label": "Fast",
+      "icon": "⚡",
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "thinkingLevel": "high"
+    },
+    {
+      "id": "daily",
+      "label": "Daily",
+      "icon": "●",
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "thinkingLevel": "high"
+    },
+    {
+      "id": "smart",
+      "label": "Smart",
+      "icon": "◆",
+      "provider": "openai-codex",
+      "model": "gpt-5.6-sol",
+      "thinkingLevel": "minimal"
+    }
+  ]
+}

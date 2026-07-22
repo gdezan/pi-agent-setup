@@ -1,0 +1,37 @@
+# Secrets
+agent/auth.json
+agent/telegram.json
+agent/telegram-topic-sessions.json
+agent/trust.json
+
+# Machine-local / cache
+agent/sessions/
+agent/npm/
+agent/tmp/
+agent/telegram-stt/
+agent/git/
+agent/bin/
+agent/models-store.json
+
+# Dependencies
+**/node_modules/
+**/package-lock.json
+**/bun.lock
+
+# Sub-repos (pi-telegram has its own .git)
+**/.git/
+agent/extensions/pi-telegram
+agent/extensions/pi-workflow
+
+# Logs
+agent/extensions/pi-permission-system/logs/
+
+# Cache indexes
+readseek/
+
+# Personal notes
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
