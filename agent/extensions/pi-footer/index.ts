@@ -3,9 +3,7 @@
  *
  * Replaces pi's default footer with a powerline-style status bar while
  * preserving statuses published by ordinary extensions when enabled. General
- * statuses are hidden by default; pi-telegram gets a minimal paper-plane
- * indicator with an optional queued-count suffix, while other statuses can be
- * toggled with /footer-statuses.
+ * statuses are hidden by default and can be toggled with /footer-statuses.
  *
  * Other extensions can register custom sections via:
  *   import { Footer } from "../pi-footer/footer.ts";
@@ -34,29 +32,6 @@ import { createModelSection } from "./sections/model.ts";
 
 export { Footer } from "./footer.ts";
 
-function formatTelegramStatus(theme: Theme, raw: string | undefined): string | undefined {
-	if (!raw) return undefined;
-
-	const plain = raw
-		.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-		.replace(/[\r\n\t]/g, " ")
-		.replace(/ +/g, " ")
-		.trim()
-		.replace(/^telegram\s*/i, "");
-	if (!plain) return undefined;
-
-	const queuedCount = plain.match(/\+(\d+)\s+queued\b/i)?.[1];
-	const color = plain.startsWith("connected")
-		? "success"
-		: plain.startsWith("processing")
-			? "accent"
-			: plain.startsWith("awaiting pairing")
-				? "warning"
-				: plain.startsWith("error")
-					? "error"
-					: "muted";
-	return theme.fg(color, queuedCount ? `➤ ${queuedCount}` : "➤");
-}
 
 export default function (pi: ExtensionAPI) {
 	let enabled = true;
@@ -101,14 +76,10 @@ export default function (pi: ExtensionAPI) {
 				render(width: number): string[] {
 					if (!enabled) return [];
 					try {
-						const telegramRaw = footerData.getExtensionStatuses().get("telegram");
 						const statuses = showStatuses
-							? Array.from(footerData.getExtensionStatuses().entries())
-									.filter(([key]) => key !== "telegram")
-									.sort(([a], [b]) => a.localeCompare(b))
-									.map(([, text]) => text)
+							? Array.from(footerData.getExtensionStatuses().values()).sort()
 							: [];
-						return Footer.render(ctx, theme, width, statuses, formatTelegramStatus(theme, telegramRaw));
+						return Footer.render(ctx, theme, width, statuses);
 					} catch (err) {
 						console.warn("[pi-footer] Render error:", err);
 						return [theme.fg("error", "pi-footer: render error")];
