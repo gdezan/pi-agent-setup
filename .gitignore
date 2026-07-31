@@ -31,3 +31,5 @@ docs/
 # OS files
 .DS_Store
 Thumbs.db
+agent/cursor-sdk-model-list.json
+agent/prompt-cache-stats.json

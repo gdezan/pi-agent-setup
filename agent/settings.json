@@ -13,7 +13,9 @@
     "npm:pi-readseek",
     "git:git@github.com:gdezan/pi-workflow",
     "npm:@aliou/pi-guardrails",
-    "npm:@plannotator/pi-extension"
+    "npm:@plannotator/pi-extension",
+    "npm:pi-cursor-sdk",
+    "npm:pi-blackhole"
   ],
   "hideThinkingBlock": false,
   "compaction": {
