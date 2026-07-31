@@ -33,3 +33,4 @@ docs/
 Thumbs.db
 agent/cursor-sdk-model-list.json
 agent/prompt-cache-stats.json
+agent/pi-blackhole/*.json

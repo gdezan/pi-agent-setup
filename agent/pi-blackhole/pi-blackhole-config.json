@@ -3,7 +3,7 @@
   "sessionFallback": true,
   "compaction": "auto",
   "compactionEngine": "blackhole",
-  "tailBehavior": "minimal",
+  "tailBehavior": "pi-default",
   "midRunCompaction": "off",
   "observeAfterTokens": 15000,
   "reflectAfterTokens": 25000,
