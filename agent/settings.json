@@ -11,7 +11,7 @@
     "npm:@juicesharp/rpiv-advisor",
     "local-packages/rpiv-todo-no-overlay",
     "npm:pi-readseek",
-    "git:git@github.com:gdezan/pi-workflow@6da693c2c179a36decb5830fa7fdb5b4e67c919a",
+    "git:git@github.com:gdezan/pi-workflow",
     "npm:@aliou/pi-guardrails",
     "npm:@plannotator/pi-extension"
   ],
