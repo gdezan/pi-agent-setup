@@ -1,6 +1,8 @@
 ## Web research routing
 
-Prefer the installed `ketch` CLI for public-web research:
+For web research, use the provider's native web-search capability first. Do not substitute another search or browsing integration when native web search is available.
+
+If native web search is unavailable, use the installed `ketch` CLI for public-web research:
 - `ketch search` for current web pages, opinions, news, and comparisons
 - `ketch docs` for version-aware library documentation
 - `ketch code` for public OSS usage examples
