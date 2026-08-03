@@ -581,7 +581,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
 	const inFlight = new Map<string, Promise<void>>();
 
-	Footer.registerSection({
+	const footerHandle = Footer.registerSection({
 		id: FOOTER_ID,
 		align: "left",
 		priority: 30,
@@ -711,6 +711,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 		refreshTimer = undefined;
 		activeContext = undefined;
 		clearUi(ctx);
+		footerHandle.unregister();
 	});
 
 	// ── /usage subcommands ───────────────────────────────────────────────
