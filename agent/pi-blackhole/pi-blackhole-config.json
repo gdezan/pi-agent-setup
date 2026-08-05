@@ -4,7 +4,7 @@
   "compaction": "auto",
   "compactionEngine": "blackhole",
   "tailBehavior": "pi-default",
-  "midRunCompaction": "off",
+  "midRunCompaction": "resume",
   "observeAfterTokens": 15000,
   "reflectAfterTokens": 25000,
   "compactAfterTokens": 120000,
@@ -18,5 +18,6 @@
   "observerPreambleMaxTokens": 0,
   "agentMaxTurns": 16,
   "memory": true,
-  "debugLog": false
+  "debugLog": false,
+  "dropperPoolFullnessThreshold": 0.1
 }
