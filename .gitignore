@@ -36,3 +36,6 @@ agent/prompt-cache-stats.json
 agent/pi-blackhole/*.json
 
 subagents/
+workflow.json
+agent/model-tiers.json
+agent/pi-blackhole/

@@ -1,5 +1,0 @@
-{
-  "$schema": "./workflow.schema.json",
-  "version": 1,
-  "enabled": true
-}
