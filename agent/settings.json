@@ -1,13 +1,13 @@
 {
-  "lastChangelogVersion": "0.83.0",
+  "lastChangelogVersion": "0.84.1",
   "theme": "dark",
   "externalEditor": "zed",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-luna",
-  "defaultThinkingLevel": "xhigh",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "deepseek-v4-flash",
+  "defaultThinkingLevel": "high",
   "packages": [
     "npm:pi-mcp-adapter",
-    "npm:@juicesharp/rpiv-ask-user-question",
+    "local-packages/ask-user-question",
     "npm:pi-agent-browser-native",
     "npm:@juicesharp/rpiv-advisor",
     "local-packages/rpiv-todo-no-overlay",
@@ -16,7 +16,8 @@
     "npm:@aliou/pi-guardrails",
     "npm:@plannotator/pi-extension",
     "npm:pi-cursor-sdk",
-    "npm:pi-blackhole"
+    "npm:pi-blackhole",
+    "npm:pi-goal"
   ],
   "hideThinkingBlock": false,
   "compaction": {
@@ -25,5 +26,6 @@
   "autocompleteMaxVisible": 10,
   "terminal": {
     "showTerminalProgress": true
-  }
+  },
+  "tuiMode": "fullscreen"
 }
