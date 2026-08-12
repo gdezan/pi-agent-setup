@@ -37,5 +37,8 @@ agent/pi-blackhole/*.json
 
 subagents/
 workflow.json
-agent/model-tiers.json
 agent/pi-blackhole/
+model-tiers.json
+guardrails.json
+pi-blackhole-config.json
+advisor.json
