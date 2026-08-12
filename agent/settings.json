@@ -4,20 +4,20 @@
   "externalEditor": "zed",
   "defaultProvider": "opencode-go",
   "defaultModel": "deepseek-v4-flash",
-  "defaultThinkingLevel": "high",
+  "defaultThinkingLevel": "max",
   "packages": [
     "npm:pi-mcp-adapter",
     "local-packages/ask-user-question",
     "npm:pi-agent-browser-native",
-    "npm:@juicesharp/rpiv-advisor",
     "local-packages/rpiv-todo-no-overlay",
-    "npm:pi-readseek",
     "git:git@github.com:gdezan/pi-workflow",
     "npm:@aliou/pi-guardrails",
     "npm:@plannotator/pi-extension",
     "npm:pi-cursor-sdk",
     "npm:pi-blackhole",
-    "npm:pi-goal"
+    "npm:pi-goal",
+    "npm:@juicesharp/rpiv-advisor",
+    "npm:pi-hashline-edit-pro"
   ],
   "hideThinkingBlock": false,
   "compaction": {
