@@ -249,6 +249,12 @@ function parseXaiUsage(value: unknown): Snapshot | undefined {
 			? (root.config as Record<string, unknown>)
 			: root;
 
+	const period =
+		config.currentPeriod && typeof config.currentPeriod === "object" && !Array.isArray(config.currentPeriod)
+			? (config.currentPeriod as Record<string, unknown>)
+			: undefined;
+	const periodType = typeof period?.type === "string" ? period.type : "";
+
 	let usedPercent = finite(config.creditUsagePercent);
 	if (usedPercent === undefined) {
 		const monthlyLimit = centsVal(config.monthlyLimit);
@@ -270,13 +276,11 @@ function parseXaiUsage(value: unknown): Snapshot | undefined {
 			}
 		}
 	}
+	// Endpoint omits creditUsagePercent at a fresh period start; treat as 0% used
+	// when a typed period is present (matches grok-cli / official credits config).
+	if (usedPercent === undefined && periodType.length > 0) usedPercent = 0;
 	if (usedPercent === undefined) return undefined;
 
-	const period =
-		config.currentPeriod && typeof config.currentPeriod === "object" && !Array.isArray(config.currentPeriod)
-			? (config.currentPeriod as Record<string, unknown>)
-			: undefined;
-	const periodType = typeof period?.type === "string" ? period.type : "";
 	const label = periodType.includes("WEEKLY")
 		? "wk"
 		: periodType.includes("MONTHLY")
