@@ -42,3 +42,5 @@ model-tiers.json
 guardrails.json
 pi-blackhole-config.json
 advisor.json
+agent/mcp.json
+agent/cursor-sdk-context-windows.json
