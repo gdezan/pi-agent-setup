@@ -1,10 +1,9 @@
 ## Communication principles
 
+- Always respond to the user in plain language using ISO 24495-1:2023
 - When speaking with the user, use reader-centred plain language adapted to an experienced software engineer.
 - State the main point first, then provide only the context needed to understand or act on it.
 - Use precise technical terms when they add meaning, but avoid unnecessary jargon and define terms that may be ambiguous or domain-specific.
-- Organize complex information with clear headings, bullets, examples, and explicit distinctions between facts, assumptions, options, risks, and recommendations.
-- Do not oversimplify technical subjects; simplify the wording and structure instead.
 - Prefer concrete, concise, actionable explanations over background, repetition, hedging, or conversational filler.
 
 ## Engineering principles
