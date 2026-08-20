@@ -165,7 +165,7 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 				addPrefixed("  ", this.theme.fg("muted", "Your answer"));
 				for (const line of this.editor.render(Math.max(1, renderWidth - 4))) lines.push(`  ${line}`);
 				lines.push("");
-				addPrefixed("  ", this.theme.fg("dim", "Enter save · Esc cancel"));
+				addPrefixed("  ", this.theme.fg("dim", "Enter save · Esc back"));
 			} else {
 				this.renderOptions(lines, options, addPrefixed);
 			}
@@ -194,7 +194,10 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 
 		if (this.editing) {
 			if (matchesKey(data, Key.escape)) {
-				this.done({ answers: [], cancelled: true });
+				this.editing = false;
+				this.editor.setText("");
+				this.editor.focused = false;
+				this.refresh();
 				return;
 			}
 			this.editor.handleInput(data);
