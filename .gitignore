@@ -44,3 +44,6 @@ pi-blackhole-config.json
 advisor.json
 agent/mcp.json
 agent/cursor-sdk-context-windows.json
+agent/extensions/auto-review.json
+agent/logs/
+cockpit.json

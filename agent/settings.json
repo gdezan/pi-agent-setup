@@ -2,9 +2,9 @@
   "lastChangelogVersion": "0.84.2",
   "theme": "dark",
   "externalEditor": "zed",
-  "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro",
-  "defaultThinkingLevel": "max",
+  "defaultProvider": "xai",
+  "defaultModel": "grok-4.6",
+  "defaultThinkingLevel": "medium",
   "packages": [
     "npm:pi-mcp-adapter",
     "local-packages/ask-user-question",
@@ -14,7 +14,8 @@
     "npm:pi-cursor-sdk",
     "npm:pi-blackhole",
     "npm:@juicesharp/rpiv-advisor",
-    "npm:pi-hashline-edit-pro"
+    "npm:pi-hashline-edit-pro",
+    "git:git@github.com:gdezan/pi-auto-review"
   ],
   "hideThinkingBlock": false,
   "compaction": {
