@@ -42,7 +42,19 @@ export async function runTuiQuestionnaire(
 	try {
 		return await ui.custom<QuestionnaireRunResult | undefined>(
 			(tui, theme, _keybindings, done) => {
-				component = new AskQuestionnaireOverlay(tui, theme, questionnaire, done, ui.notify);
+				component = new AskQuestionnaireOverlay(
+					tui,
+					theme,
+					questionnaire,
+					done,
+					collapseKey,
+					() => {
+						if (!overlayHandle || collapseKey === "off") return;
+						overlayHandle.setHidden(true);
+						ui.notify(`Questionnaire hidden — press ${collapseKey} to reopen`, "info");
+					},
+					ui.notify,
+				);
 				return component;
 			},
 			{
@@ -51,7 +63,7 @@ export async function runTuiQuestionnaire(
 					anchor: "bottom-center",
 					width: "100%",
 					maxHeight: "70%",
-					margin: { left: 1, right: 1, bottom: 1 },
+					margin: { left: 0, right: 0, bottom: 1 },
 				},
 				onHandle: (handle) => {
 					overlayHandle = handle;
@@ -90,6 +102,8 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 		private readonly theme: AskUserTheme,
 		private readonly questionnaire: AskQuestionnaire,
 		private readonly done: (result: QuestionnaireRunResult) => void,
+		private readonly collapseKey: string | "off",
+		private readonly onCollapse: () => void,
 		private readonly notify: (message: string, type?: "info" | "warning" | "error") => void,
 	) {
 		const editorTheme: EditorTheme = {
@@ -138,20 +152,20 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 			}
 		};
 
-		lines.push(this.theme.fg("accent", "─".repeat(renderWidth)));
-		this.renderTabs(lines, renderWidth, addPrefixed);
+		this.renderHeader(lines, renderWidth);
+		this.renderTabs(lines, addPrefixed);
 
 		if (this.isReviewTab()) {
 			this.renderReview(lines, addPrefixed);
 		} else if (currentQuestion) {
-			addPrefixed(" ", this.theme.fg("accent", this.theme.bold(`[${currentQuestion.header}]`)));
-			addPrefixed(" ", this.theme.fg("text", currentQuestion.question));
+			addPrefixed("  ", this.theme.fg("accent", this.theme.bold(currentQuestion.header)));
+			addPrefixed("  ", this.theme.fg("text", currentQuestion.question));
 			lines.push("");
 			if (this.editing) {
-				addPrefixed(" ", this.theme.fg("muted", "Your answer:"));
-				for (const line of this.editor.render(Math.max(1, renderWidth - 2))) lines.push(` ${line}`);
+				addPrefixed("  ", this.theme.fg("muted", "Your answer"));
+				for (const line of this.editor.render(Math.max(1, renderWidth - 4))) lines.push(`  ${line}`);
 				lines.push("");
-				addPrefixed(" ", this.theme.fg("dim", "Enter to save • Esc cancels the questionnaire"));
+				addPrefixed("  ", this.theme.fg("dim", "Enter save · Esc cancel"));
 			} else {
 				this.renderOptions(lines, options, addPrefixed);
 			}
@@ -160,11 +174,11 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 		lines.push("");
 		if (!this.editing) {
 			const help = this.isReviewTab()
-				? "Tab/←→ navigate • Enter submit when complete • Esc cancel"
+				? "Tab/←→ navigate · Enter submit · Esc cancel"
 				: currentQuestion?.multiSelect
-					? "↑↓ move • Space toggle • Enter continue • Tab/←→ navigate • Esc cancel"
-					: "↑↓ move • Enter choose • Tab/←→ navigate • Esc cancel";
-			addPrefixed(" ", this.theme.fg("dim", help));
+					? "↑↓ select · Space toggle · Enter continue · Tab next · Esc cancel"
+					: "↑↓ select · Enter choose · Tab next · Esc cancel";
+			addPrefixed("  ", this.theme.fg("dim", help));
 		}
 		lines.push(this.theme.fg("accent", "─".repeat(renderWidth)));
 		this.cachedLines = lines;
@@ -176,6 +190,8 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 	}
 
 	handleInput(data: string): void {
+		if (this.handleCollapseInput(data)) return;
+
 		if (this.editing) {
 			if (matchesKey(data, Key.escape)) {
 				this.done({ answers: [], cancelled: true });
@@ -224,6 +240,13 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 			return;
 		}
 		if (matchesKey(data, Key.escape)) this.done({ answers: [], cancelled: true });
+	}
+
+	private handleCollapseInput(data: string): boolean {
+		if (this.collapseKey === "off") return false;
+		if (!matchesKey(data, this.collapseKey as Parameters<typeof matchesKey>[1])) return false;
+		if (!isKeyRelease(data) && !isKeyRepeat(data)) this.onCollapse();
+		return true;
 	}
 
 	private chooseOption(question: AskQuestion, option: DisplayOption | undefined): void {
@@ -371,20 +394,37 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 		];
 	}
 
-	private renderTabs(lines: string[], renderWidth: number, addPrefixed: (prefix: string, text: string) => void): void {
+	private renderHeader(lines: string[], renderWidth: number): void {
+		const total = this.questionnaire.questions.length;
+		const leftText = ` Ask user · ${this.answers.size}/${total} answered`;
+		const rightText = this.collapseKey === "off" ? "" : `[${this.collapseKey} hide] `;
+		const requiredWidth = visibleWidth(leftText) + visibleWidth(rightText) + 1;
+
+		if (rightText && requiredWidth <= renderWidth) {
+			const gap = " ".repeat(renderWidth - visibleWidth(leftText) - visibleWidth(rightText));
+			lines.push(
+				`${this.theme.fg("accent", this.theme.bold(leftText))}${gap}${this.theme.fg("dim", rightText)}`,
+			);
+		} else {
+			lines.push(...wrapTextWithAnsi(this.theme.fg("accent", this.theme.bold(leftText)), renderWidth));
+		}
+		lines.push(this.theme.fg("accent", "─".repeat(renderWidth)));
+	}
+
+	private renderTabs(lines: string[], addPrefixed: (prefix: string, text: string) => void): void {
 		if (!shouldShowQuestionnaireReview(this.questionnaire)) return;
 		const tabs = this.questionnaire.questions.map((question, index) => {
-			const marker = this.answers.has(question.id) ? "■" : "□";
-			const label = ` ${marker} ${question.header} `;
+			const answered = this.answers.has(question.id);
+			const label = ` ${index + 1} ${question.header}${answered ? " ✓" : ""} `;
 			return index === this.currentTab
 				? this.theme.bg("selectedBg", this.theme.fg("text", label))
-				: this.theme.fg(this.answers.has(question.id) ? "success" : "muted", label);
+				: this.theme.fg(answered ? "success" : "muted", label);
 		});
-		const submitLabel = this.isReviewTab() ? " ✓ Submit " : " ✓ Review ";
-		const submit = this.isReviewTab()
-			? this.theme.bg("selectedBg", this.theme.fg("text", submitLabel))
-			: this.theme.fg(this.allAnswered() ? "success" : "dim", submitLabel);
-		addPrefixed(" ", `${tabs.join(" ")} ${submit}`);
+		const reviewLabel = ` Review${this.allAnswered() ? " ✓" : ""} `;
+		const review = this.isReviewTab()
+			? this.theme.bg("selectedBg", this.theme.fg("text", reviewLabel))
+			: this.theme.fg(this.allAnswered() ? "success" : "dim", reviewLabel);
+		addPrefixed("  ", `${tabs.join(" ")} ${review}`);
 		lines.push("");
 	}
 
@@ -394,27 +434,30 @@ class AskQuestionnaireOverlay implements Component, Focusable {
 			const option = options[index];
 			const active = index === this.selectedIndex;
 			const checked = question?.multiSelect && option.kind === "option" && this.multiSelection.has(option.label);
-			const marker = question?.multiSelect && option.kind === "option" ? (checked ? "[x]" : "[ ]") : "   ";
-			const prefix = active ? this.theme.fg("accent", "> ") : "  ";
-			const color = active ? "accent" : option.kind === "skipped" ? "warning" : "text";
-			addPrefixed(prefix, `${marker} ${index + 1}. ${this.theme.fg(color, option.label)}`);
-			addPrefixed("       ", this.theme.fg("muted", option.description));
+			const marker = question?.multiSelect && option.kind === "option" ? (checked ? "[x]" : "[ ]") : active ? "›" : " ";
+			const labelText = `${marker} ${index + 1}. ${option.label}`;
+			const color = option.kind === "skipped" ? "warning" : option.kind === "custom" ? "muted" : "text";
+			const label = active
+				? this.theme.bg("selectedBg", this.theme.fg("text", ` ${labelText} `))
+				: this.theme.fg(color, labelText);
+			addPrefixed("  ", label);
+			addPrefixed("     ", this.theme.fg(option.kind === "option" ? "muted" : "dim", option.description));
 		}
 	}
 
 	private renderReview(lines: string[], addPrefixed: (prefix: string, text: string) => void): void {
-		addPrefixed(" ", this.theme.fg("accent", this.theme.bold("Review your answers")));
+		addPrefixed("  ", this.theme.fg("accent", this.theme.bold("Review your answers")));
 		lines.push("");
 		for (const question of this.questionnaire.questions) {
 			const answer = this.answers.get(question.id);
 			const summary = answer ? formatAnswer(answer) : "Not answered";
 			const color = answer ? (answer.kind === "skipped" ? "warning" : "success") : "warning";
-			addPrefixed(" ", `${this.theme.fg("muted", `[${question.id}] ${question.header}:`)} ${this.theme.fg(color, summary)}`);
+			addPrefixed("  ", `${this.theme.fg("muted", `${question.header}:`)} ${this.theme.fg(color, summary)}`);
 		}
 		lines.push("");
 		addPrefixed(
-			" ",
-			this.theme.fg(this.allAnswered() ? "success" : "warning", this.allAnswered() ? "Press Enter to submit" : "Answer or skip every question before submitting"),
+			"  ",
+			this.theme.fg(this.allAnswered() ? "success" : "warning", this.allAnswered() ? "Enter to submit" : "Answer or skip every question before submitting"),
 		);
 	}
 
