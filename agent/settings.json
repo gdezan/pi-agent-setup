@@ -1,10 +1,10 @@
 {
-  "lastChangelogVersion": "0.84.2",
+  "lastChangelogVersion": "0.84.4",
   "theme": "dark",
   "externalEditor": "zed",
-  "defaultProvider": "xai",
-  "defaultModel": "grok-4.6",
-  "defaultThinkingLevel": "medium",
+  "defaultProvider": "opencode-go",
+  "defaultModel": "ox-alpha-free",
+  "defaultThinkingLevel": "high",
   "packages": [
     "npm:pi-mcp-adapter",
     "local-packages/ask-user-question",
@@ -15,7 +15,8 @@
     "npm:pi-blackhole",
     "npm:@juicesharp/rpiv-advisor",
     "npm:pi-hashline-edit-pro",
-    "git:git@github.com:gdezan/pi-auto-review"
+    "git:git@github.com:gdezan/pi-auto-review",
+    "npm:@ff-labs/pi-fff"
   ],
   "hideThinkingBlock": false,
   "compaction": {

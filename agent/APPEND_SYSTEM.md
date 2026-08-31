@@ -13,11 +13,6 @@
 - Lean on the dependencies already in the project before writing your implementation or adding packages. Do not assume a library lacks capability without checking its documentation and types.
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 
-## Local codebase search
-
-- Prefer `rg` for text search and `fd` for file discovery.
-- Use `ast-grep` when searches or rewrites must match code structure rather than raw text.
-
 ## Web research routing
 
 For web research, use the provider's native web-search capability first. Do not substitute another search or browsing integration when native web search is available.

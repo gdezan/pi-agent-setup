@@ -9,6 +9,9 @@ agent/tmp/
 agent/git/
 agent/bin/
 agent/models-store.json
+
+# Machine-local system prompt additions (see extensions/machine-prompt.ts)
+agent/APPEND_SYSTEM.local.md
 agent/mcp-cache.json
 .pi/extensions/guardrails.json
 
@@ -46,4 +49,6 @@ agent/mcp.json
 agent/cursor-sdk-context-windows.json
 agent/extensions/auto-review.json
 agent/logs/
+agent/fff/
 cockpit.json
+extensions/auto-review.json
