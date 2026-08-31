@@ -113,8 +113,9 @@ export default function piCacheObserver(pi: ExtensionAPI): void {
 	Footer.registerSection({
 		id: FOOTER_ID,
 		align: "right",
-		priority: 15,
-		render: (ctx, theme) => renderCacheFooter(ctx, theme, totals),
+		order: 15,
+		variants: ["compact", "minimal"],
+		render: (ctx, theme, variant) => renderCacheFooter(ctx, theme, totals, variant),
 	});
 
 	pi.on("session_start", async (_event, ctx) => {

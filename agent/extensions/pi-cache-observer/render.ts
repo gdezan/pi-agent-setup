@@ -1,5 +1,6 @@
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
 import { fmtTokens } from "../pi-footer/renderers.ts";
+import type { FooterSectionVariant } from "../pi-footer/types.ts";
 import type { CacheObservation, CacheSessionTotals, ObserverSnapshot, OptimizerDecision } from "./types.ts";
 
 function hitRateForTotals(totals: CacheSessionTotals): number | undefined {
@@ -24,9 +25,11 @@ export function renderCacheFooter(
 	_ctx: ExtensionContext,
 	theme: Theme,
 	totals: CacheSessionTotals,
+	variant: FooterSectionVariant,
 ): string {
 	const rate = hitRateForTotals(totals);
-	const text = formatCacheFooterText(totals);
+	const rateText = rate === undefined ? "--" : `${Math.round(rate * 100)}%`;
+	const text = variant === "minimal" ? `c${rateText}` : `cache ${rateText}`;
 	return theme.fg(rateColor(rate), text);
 }
 

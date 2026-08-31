@@ -8,9 +8,9 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, watch, type FSWatcher } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import type { Section } from "../types.ts";
+import type { FooterSectionVariant, Section } from "../types.ts";
 
 function getGitBranch(cwd: string): string | null {
 	try {
@@ -67,7 +67,9 @@ export function createPathSection() {
 	} = {
 		id: "pi-footer:path",
 		align: "left",
-		priority: 10,
+		order: 10,
+		essential: true,
+		variants: ["full", "compact"],
 
 		setCwd(newCwd: string): void {
 			cwd = newCwd;
@@ -79,8 +81,14 @@ export function createPathSection() {
 			onInvalidate = fn;
 		},
 
-		render(_ctx: ExtensionContext, theme: Theme): string {
+		render(_ctx: ExtensionContext, theme: Theme, variant: FooterSectionVariant): string {
 			const resolved = resolve(cwd);
+			if (variant === "compact") {
+				const folder = basename(resolved) || resolved;
+				const branchSuffix = branch ? theme.fg("dim", `@${branch}`) : "";
+				return theme.fg("warning", folder) + branchSuffix;
+			}
+
 			const pathStr = fmtCwd(resolved);
 			const branchStr = branch ? theme.fg("dim", ` (${branch})`) : "";
 			return theme.fg("warning", pathStr) + branchStr;

@@ -7,35 +7,24 @@
  */
 
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import type { Section } from "../types.ts";
+import type { FooterSectionVariant, Section } from "../types.ts";
 import { accumulateSessionStats, fmtCost, fmtTokens } from "../renderers.ts";
 
 export function createTokensSection(): Section {
 	return {
 		id: "pi-footer:tokens",
 		align: "right",
-		priority: 10,
+		order: 10,
+		variants: ["compact", "minimal"],
 
-		render(ctx: ExtensionContext, theme: Theme): string {
+		render(ctx: ExtensionContext, theme: Theme, variant: FooterSectionVariant): string {
 			const entries = ctx.sessionManager.getBranch();
 			const stats = accumulateSessionStats(entries);
+			const tokenColor = stats.input === 0 && stats.output === 0 ? "muted" : "success";
+			const tokenText = theme.fg(tokenColor, `↑${fmtTokens(stats.input)} ↓${fmtTokens(stats.output)}`);
 
-			if (stats.input === 0 && stats.output === 0 && stats.cost === 0) {
-				return theme.fg("muted", "↑0 ↓0 $0.000");
-			}
-
-			const parts: string[] = [];
-
-			if (stats.input > 0 || stats.output > 0) {
-				parts.push(theme.fg("success", "↑" + fmtTokens(stats.input)));
-				parts.push(theme.fg("success", "↓" + fmtTokens(stats.output)));
-			}
-
-			if (stats.cost > 0) {
-				parts.push(theme.fg("muted", fmtCost(stats.cost)));
-			}
-
-			return parts.join(" ");
+			if (variant === "minimal") return tokenText;
+			return `${tokenText} ${theme.fg("muted", fmtCost(stats.cost))}`;
 		},
 	};
 }

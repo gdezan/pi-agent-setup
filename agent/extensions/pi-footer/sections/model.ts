@@ -6,29 +6,40 @@
  */
 
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import type { Section } from "../types.ts";
+import type { FooterSectionVariant, Section } from "../types.ts";
+
+function compactThinkingLevel(thinkingLevel: string): string {
+	if (thinkingLevel === "medium") return "med";
+	return thinkingLevel;
+}
 
 export function createModelSection(pi: { getThinkingLevel(): string }): Section {
 	return {
 		id: "pi-footer:model",
 		align: "right",
-		priority: 20,
+		order: 100,
+		essential: true,
+		variants: ["full", "compact"],
 
-		render(ctx: ExtensionContext, theme: Theme): string {
+		render(ctx: ExtensionContext, theme: Theme, variant: FooterSectionVariant): string {
 			const modelId = ctx.model?.id;
 			if (!modelId) return theme.fg("muted", "no model");
 
-			// Model name
-			let text = theme.fg("accent", `⚡ ${modelId}`);
+			const thinking = pi.getThinkingLevel();
+			if (variant === "compact") {
+				let compactText = theme.fg("accent", modelId);
+				if (thinking && thinking !== "off") {
+					compactText += theme.fg("dim", " · ") + theme.fg("warning", compactThinkingLevel(thinking));
+				}
+				return compactText;
+			}
 
-			// Provider in muted parentheses
+			let text = theme.fg("accent", `⚡ ${modelId}`);
 			const provider = ctx.model?.provider;
 			if (provider) {
 				text += theme.fg("muted", ` (${provider})`);
 			}
 
-			// Thinking level (only when not "off")
-			const thinking = pi.getThinkingLevel();
 			if (thinking && thinking !== "off") {
 				text += theme.fg("dim", " • ") + theme.fg("warning", thinking);
 			}

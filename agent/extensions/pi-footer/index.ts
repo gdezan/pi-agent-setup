@@ -7,7 +7,7 @@
  *
  * Other extensions can register custom sections via:
  *   import { Footer } from "../pi-footer/footer.ts";
- *   Footer.registerSection({ id, align, priority, render, dispose? });
+ *   Footer.registerSection({ id, align, order, render, dispose? });
  *
  * Note: pi's setFooter() API is singleton-style. Two unrelated custom-footer
  * extensions cannot be transparently composed; the last one installed wins.

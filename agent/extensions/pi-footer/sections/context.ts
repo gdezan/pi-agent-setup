@@ -15,7 +15,9 @@ export function createContextSection(): Section {
 	return {
 		id: "pi-footer:context",
 		align: "left",
-		priority: 20,
+		order: 20,
+		essential: true,
+		variants: ["full"],
 
 		render(ctx: ExtensionContext, theme: Theme): string {
 			const usage = ctx.getContextUsage();

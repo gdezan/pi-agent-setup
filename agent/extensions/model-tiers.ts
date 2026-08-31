@@ -199,7 +199,7 @@ export default function modelTiers(pi: ExtensionAPI) {
   Footer.registerSection({
     id: "model-tier",
     align: "right",
-    priority: 25,
+    order: 25,
     render: (ctx, theme) => {
       const role = findRole(config, ctx.model);
       if (!role) return "";

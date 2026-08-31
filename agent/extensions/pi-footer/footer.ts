@@ -8,7 +8,7 @@
 
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
-import type { Section, SectionHandle } from "./types.ts";
+import type { FooterSectionVariant, Section, SectionHandle } from "./types.ts";
 
 type Listener = () => void;
 type EventBus = {
@@ -91,42 +91,90 @@ export const Footer = {
 		const statusValues = Array.from(statuses);
 		if (state.sections.size === 0 && statusValues.length === 0 && !featuredStatus) return [];
 
-		const sep = theme.fg("dim", " │ ");
-		const minPad = 2;
-		const left: Section[] = [];
-		const right: Section[] = [];
-
-		for (const section of state.sections.values()) {
-			(section.align === "left" ? left : right).push(section);
-		}
-		left.sort((a, b) => a.priority - b.priority);
-		right.sort((a, b) => a.priority - b.priority);
-
-		const renderSafe = (section: Section): string | null => {
-			try {
-				return section.render(ctx, theme);
-			} catch (err) {
-				console.warn(`[pi-footer] Section "${section.id}" threw:`, err);
-				return null;
-			}
+		const separator = theme.fg("dim", " │ ");
+		const minimumPadding = 2;
+		type RenderedSection = {
+			section: Section;
+			variants: readonly FooterSectionVariant[];
+			variantIndex: number;
+			text: string;
+			hidden: boolean;
 		};
 
-		const leftParts = left.map(renderSafe).filter((s): s is string => Boolean(s));
-		if (featuredStatus) leftParts.push(featuredStatus);
-		let rightParts = right.map(renderSafe).filter((s): s is string => Boolean(s));
-		const buildLeft = () => leftParts.join(sep);
-		const buildRight = () => rightParts.join(sep);
-		const measureLeft = () => visibleWidth(buildLeft());
-		const measureRight = () => visibleWidth(buildRight());
+		const renderSection = (item: RenderedSection): void => {
+			try {
+				item.text = item.section.render(ctx, theme, item.variants[item.variantIndex] ?? "full");
+			} catch (error) {
+				console.warn(`[pi-footer] Section "${item.section.id}" threw:`, error);
+				item.text = "";
+				item.hidden = true;
+			}
+		};
+		const createRenderedSection = (section: Section): RenderedSection => {
+			const item: RenderedSection = {
+				section,
+				variants: section.variants ?? ["full"],
+				variantIndex: 0,
+				text: "",
+				hidden: false,
+			};
+			renderSection(item);
+			return item;
+		};
 
-		while (rightParts.length > 1 && measureLeft() + minPad + measureRight() > width) {
-			rightParts.pop();
+		const left = Array.from(state.sections.values())
+			.filter((section) => section.align === "left")
+			.sort((a, b) => a.order - b.order)
+			.map(createRenderedSection);
+		const right = Array.from(state.sections.values())
+			.filter((section) => section.align === "right")
+			.sort((a, b) => a.order - b.order)
+			.map(createRenderedSection);
+
+		if (featuredStatus) {
+			left.push({
+				section: { id: "pi-footer:featured-status", align: "left", order: Number.MAX_SAFE_INTEGER, essential: true, render: () => featuredStatus },
+				variants: ["full"],
+				variantIndex: 0,
+				text: featuredStatus,
+				hidden: false,
+			});
 		}
 
-		const finalLeft = buildLeft();
-		const finalRight = buildRight();
-		const finalLeftW = visibleWidth(finalLeft);
-		const finalRightW = visibleWidth(finalRight);
+		const visibleText = (items: RenderedSection[]): string =>
+			items.filter((item) => !item.hidden && item.text).map((item) => item.text).join(separator);
+		const totalWidth = (): number => {
+			const leftWidth = visibleWidth(visibleText(left));
+			const rightWidth = visibleWidth(visibleText(right));
+			return leftWidth + (leftWidth > 0 && rightWidth > 0 ? minimumPadding : 0) + rightWidth;
+		};
+		const allItems = [...left, ...right];
+
+		while (totalWidth() > width) {
+			const reducibleAuxiliary = allItems
+				.filter((item) => !item.hidden && !item.section.essential && item.variantIndex < item.variants.length - 1)
+				.sort((a, b) => visibleWidth(b.text) - visibleWidth(a.text))[0];
+			if (reducibleAuxiliary) {
+				reducibleAuxiliary.variantIndex += 1;
+				renderSection(reducibleAuxiliary);
+				continue;
+			}
+
+			const removableAuxiliary = allItems
+				.filter((item) => !item.hidden && !item.section.essential)
+				.sort((a, b) => visibleWidth(b.text) - visibleWidth(a.text))[0];
+			if (removableAuxiliary) {
+				removableAuxiliary.hidden = true;
+				continue;
+			}
+
+			const reducibleEssential = allItems
+				.filter((item) => !item.hidden && item.section.essential && item.variantIndex < item.variants.length - 1)
+				.sort((a, b) => visibleWidth(b.text) - visibleWidth(a.text))[0];
+			if (!reducibleEssential) break;
+			reducibleEssential.variantIndex += 1;
+			renderSection(reducibleEssential);
+		}
 
 		const statusLine = statusValues
 			.map((text) => text.replace(/[\r\n\t]/g, " ").replace(/ +/g, " ").trim())
@@ -137,16 +185,34 @@ export const Footer = {
 			return lines;
 		};
 
-		if (finalLeftW + minPad + finalRightW > width) {
-			const available = Math.max(0, width - finalLeftW - minPad);
-			if (available <= 0) return withStatuses([truncateToWidth(finalLeft, width)]);
-			const truncated = truncateToWidth(finalRight, available, "");
-			const pad = " ".repeat(Math.max(1, width - finalLeftW - visibleWidth(truncated)));
-			return withStatuses([finalLeft + pad + truncated]);
+		const leftText = visibleText(left);
+		const rightText = visibleText(right);
+		const leftWidth = visibleWidth(leftText);
+		const rightWidth = visibleWidth(rightText);
+		const paddingWidth = leftWidth > 0 && rightWidth > 0 ? minimumPadding : 0;
+		if (leftWidth + paddingWidth + rightWidth <= width) {
+			const padding = " ".repeat(Math.max(paddingWidth, width - leftWidth - rightWidth));
+			return withStatuses([leftText + padding + rightText]);
 		}
 
-		const pad = " ".repeat(Math.max(minPad, width - finalLeftW - finalRightW));
-		return withStatuses([finalLeft + pad + finalRight]);
+		if (!leftText || !rightText) {
+			return withStatuses([truncateToWidth(leftText || rightText, width, "")]);
+		}
+
+		const contentWidth = Math.max(0, width - minimumPadding);
+		let leftBudget = Math.floor(contentWidth / 2);
+		let rightBudget = contentWidth - leftBudget;
+		if (leftWidth < leftBudget) {
+			rightBudget += leftBudget - leftWidth;
+			leftBudget = leftWidth;
+		} else if (rightWidth < rightBudget) {
+			leftBudget += rightBudget - rightWidth;
+			rightBudget = rightWidth;
+		}
+		const fittedLeft = truncateToWidth(leftText, leftBudget, "");
+		const fittedRight = truncateToWidth(rightText, rightBudget, "");
+		const padding = " ".repeat(Math.max(0, width - visibleWidth(fittedLeft) - visibleWidth(fittedRight)));
+		return withStatuses([fittedLeft + padding + fittedRight]);
 	},
 
 	clear(): void {

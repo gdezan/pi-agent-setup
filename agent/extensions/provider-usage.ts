@@ -588,7 +588,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 	const footerHandle = Footer.registerSection({
 		id: FOOTER_ID,
 		align: "left",
-		priority: 30,
+		order: 30,
 		render: (ctx, _theme) => {
 			const provider = findProvider(ctx.model);
 			if (!provider) return "";
