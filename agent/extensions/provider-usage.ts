@@ -59,6 +59,7 @@ const XAI_BILLING_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credi
 const XAI_TOKEN_URL = "https://auth.x.ai/oauth2/token";
 const XAI_CLIENT_ID = "b1a00492-073a-47ea-816f-4c329264a828";
 const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
+const OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 const COPILOT_BILLING_URL = "https://api.github.com";
 const COPILOT_BILLING_AUTH_KEY = "github-copilot-billing";
 
@@ -86,6 +87,25 @@ function resetAtFromIso(value: unknown): number | undefined {
 	if (typeof value !== "string" || value.trim() === "") return undefined;
 	const ms = Date.parse(value);
 	return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
+function calendarMonthSeconds(resetAt: number): number {
+	const reset = new Date(resetAt * 1000);
+	const anchorDay = reset.getUTCDate();
+	const start = new Date(reset);
+	start.setUTCDate(1);
+	start.setUTCMonth(start.getUTCMonth() - 1);
+	const daysInStartMonth = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
+	start.setUTCDate(Math.min(anchorDay, daysInStartMonth));
+	return Math.round((reset.getTime() - start.getTime()) / 1000);
+}
+
+function windowSecondsFor(label: string, resetAt?: number): number | undefined {
+	const key = label.trim().toLowerCase();
+	if (key === "5h") return FIVE_HOURS;
+	if (key === "wk") return SEVEN_DAYS;
+	if (key === "mo" && resetAt !== undefined) return calendarMonthSeconds(resetAt);
+	return undefined;
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | undefined {
@@ -437,6 +457,60 @@ async function fetchDeepseekBalance(auth: AuthEntry): Promise<Snapshot> {
 	return snapshotValue;
 }
 
+// ── OpenCode Go adapter ───────────────────────────────────────────────
+
+const OPENCODE_GO_WINDOWS = [
+	{ key: "rolling", label: "5h" },
+	{ key: "weekly", label: "wk" },
+	{ key: "monthly", label: "mo" },
+] as const;
+
+function parseOpencodeGoUsage(value: unknown): Snapshot | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const root = value as Record<string, unknown>;
+	const usage = root.usage;
+	if (!usage || typeof usage !== "object" || Array.isArray(usage)) return undefined;
+	const buckets = usage as Record<string, unknown>;
+	const windows: Window[] = [];
+	for (const { key, label } of OPENCODE_GO_WINDOWS) {
+		const bucket = buckets[key];
+		if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) continue;
+		const record = bucket as Record<string, unknown>;
+		const percent = finite(record.percent);
+		if (percent === undefined) continue;
+		const resetAt = resetAtFromIso(record.resetsAt);
+		windows.push({
+			label,
+			usedPercent: clampPercent(percent),
+			windowSeconds: windowSecondsFor(label, resetAt),
+			resetAt,
+		});
+	}
+	return snapshot(windows);
+}
+
+async function fetchOpencodeGoUsage(auth: AuthEntry): Promise<Snapshot> {
+	const key = stringField(auth, "key");
+	if (!key) throw new Error("OpenCode Go API key is not configured in Pi");
+	const snapshotValue = await withTimeout(async (signal) => {
+		const response = await fetch(OPENCODE_GO_USAGE_URL, {
+			signal,
+			headers: {
+				accept: "application/json",
+				authorization: `Bearer ${key}`,
+				// opencode.ai sits behind a WAF that 403s unrecognized clients before
+				// auth is ever considered — without a client-shaped user-agent even the
+				// documented /models endpoint is refused.
+				"user-agent": "opencode/1.0",
+			},
+		});
+		if (!response.ok) throw new Error(`OpenCode Go usage request returned ${response.status}`);
+		return parseOpencodeGoUsage(await response.json());
+	});
+	if (!snapshotValue) throw new Error("OpenCode Go usage response contained no recognized windows");
+	return snapshotValue;
+}
+
 // ── GitHub Copilot adapter ────────────────────────────────────────────
 
 function parseCopilotBilling(value: unknown, maxCredits?: number): Snapshot | undefined {
@@ -524,6 +598,13 @@ const PROVIDERS: ProviderSpec[] = [
 		fetch: fetchDeepseekBalance,
 	},
 	{
+		id: "opencode-go",
+		name: "OpenCode Go",
+		providers: ["opencode-go"],
+		authKey: "opencode-go",
+		fetch: fetchOpencodeGoUsage,
+	},
+	{
 		id: "copilot",
 		name: "Copilot",
 		providers: ["github-copilot"],
@@ -589,6 +670,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 		id: FOOTER_ID,
 		align: "left",
 		order: 30,
+		essential: true,
 		render: (ctx, _theme) => {
 			const provider = findProvider(ctx.model);
 			if (!provider) return "";
