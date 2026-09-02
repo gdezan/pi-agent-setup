@@ -3,28 +3,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Footer } from "./pi-footer/footer.ts";
-
-// ── Shared types ──────────────────────────────────────────────────────
-
-type Window = {
-	label: string;
-	usedPercent: number;
-	/** Absolute balance for wallet-style providers (DeepSeek) or consumed credits. */
-	amount?: number;
-	/** Optional limit for amount-style providers, e.g. Copilot monthly credits. */
-	limitAmount?: number;
-	/** Currency code (USD, CNY) or unit marker (cr) for amount-style providers. */
-	currency?: string;
-	windowSeconds?: number;
-	resetAt?: number;
-};
-
-type Snapshot = {
-	windows: Window[];
-	updatedAt: number;
-};
-
-type AuthEntry = Record<string, unknown>;
+import { fetchAntigravityUsage } from "./provider-usage/antigravity.ts";
+import { fetchClaudeUsage } from "./provider-usage/claude.ts";
+import { USAGE_POPUP_WIDTH, UsagePopup } from "./provider-usage/popup.ts";
+import type { AuthEntry, Snapshot, Window } from "./provider-usage/types.ts";
+import { countdown, windowSecondsFor } from "./provider-usage/windows.ts";
 
 type ProviderSpec = {
 	/** Unique id used for status/footer keys and command names. */
@@ -33,8 +16,8 @@ type ProviderSpec = {
 	name: string;
 	/** model.provider values this adapter owns. */
 	providers: readonly string[];
-	/** auth.json top-level key. */
-	authKey: string;
+	/** auth.json top-level key; omit for adapters that read their own store (Claude, Antigravity). */
+	authKey?: string;
 	/** Fetch a fresh snapshot using stored credentials. */
 	fetch: (auth: AuthEntry) => Promise<Snapshot>;
 	/** Optional incremental update from response headers. */
@@ -87,25 +70,6 @@ function resetAtFromIso(value: unknown): number | undefined {
 	if (typeof value !== "string" || value.trim() === "") return undefined;
 	const ms = Date.parse(value);
 	return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
-}
-
-function calendarMonthSeconds(resetAt: number): number {
-	const reset = new Date(resetAt * 1000);
-	const anchorDay = reset.getUTCDate();
-	const start = new Date(reset);
-	start.setUTCDate(1);
-	start.setUTCMonth(start.getUTCMonth() - 1);
-	const daysInStartMonth = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0)).getUTCDate();
-	start.setUTCDate(Math.min(anchorDay, daysInStartMonth));
-	return Math.round((reset.getTime() - start.getTime()) / 1000);
-}
-
-function windowSecondsFor(label: string, resetAt?: number): number | undefined {
-	const key = label.trim().toLowerCase();
-	if (key === "5h") return FIVE_HOURS;
-	if (key === "wk") return SEVEN_DAYS;
-	if (key === "mo" && resetAt !== undefined) return calendarMonthSeconds(resetAt);
-	return undefined;
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | undefined {
@@ -582,20 +546,13 @@ const PROVIDERS: ProviderSpec[] = [
 		fetch: fetchCodexUsage,
 		parseHeaders: parseCodexHeaders,
 	},
+	// Display-only observer: Claude Code is a separate login, so it never
+	// matches ctx.model — the popup shows it, the footer cannot.
 	{
-		id: "xai",
-		name: "xAI",
-		providers: ["xai", "xai-auth"],
-		authKey: "xai",
-		fetch: fetchXaiUsage,
-		refreshAuth: refreshXaiAuth,
-	},
-	{
-		id: "deepseek",
-		name: "DeepSeek",
-		providers: ["deepseek"],
-		authKey: "deepseek",
-		fetch: fetchDeepseekBalance,
+		id: "claude",
+		name: "Claude",
+		providers: [],
+		fetch: () => fetchClaudeUsage(),
 	},
 	{
 		id: "opencode-go",
@@ -605,11 +562,34 @@ const PROVIDERS: ProviderSpec[] = [
 		fetch: fetchOpencodeGoUsage,
 	},
 	{
+		id: "xai",
+		name: "xAI",
+		providers: ["xai", "xai-auth"],
+		authKey: "xai",
+		fetch: fetchXaiUsage,
+		refreshAuth: refreshXaiAuth,
+	},
+	{
 		id: "copilot",
 		name: "Copilot",
 		providers: ["github-copilot"],
 		authKey: COPILOT_BILLING_AUTH_KEY,
 		fetch: fetchCopilotUsage,
+	},
+	// Display-only observer: Antigravity is a separate login, so it never
+	// matches ctx.model — the popup shows it, the footer cannot.
+	{
+		id: "antigravity",
+		name: "Antigravity",
+		providers: [],
+		fetch: () => fetchAntigravityUsage(),
+	},
+	{
+		id: "deepseek",
+		name: "DeepSeek",
+		providers: ["deepseek"],
+		authKey: "deepseek",
+		fetch: fetchDeepseekBalance,
 	},
 ];
 
@@ -621,15 +601,10 @@ function findProvider(model: { provider?: string } | undefined): ProviderSpec | 
 
 // ── Rendering ─────────────────────────────────────────────────────────
 
-function countdown(resetAt: number | undefined): string {
-	if (resetAt === undefined) return "";
-	const seconds = Math.max(0, resetAt - Math.floor(Date.now() / 1000));
-	const days = Math.floor(seconds / 86_400);
-	const hours = Math.floor((seconds % 86_400) / 3_600);
-	const minutes = Math.floor((seconds % 3_600) / 60);
-	if (days > 0) return ` ↺ ${days}d${hours}h`;
-	if (hours > 0) return ` ↺ ${hours}h${minutes}m`;
-	return ` ↺ ${minutes}m`;
+/** The footer joins the countdown straight onto the percentage, so it carries the separator space. */
+function footerCountdown(resetAt: number | undefined): string {
+	const text = countdown(resetAt);
+	return text ? ` ${text}` : "";
 }
 
 function renderWindow(ctx: ExtensionContext, window: Window): string {
@@ -651,7 +626,7 @@ function renderWindow(ctx: ExtensionContext, window: Window): string {
 	}
 	const left = Math.round(100 - window.usedPercent);
 	const color = left <= 10 ? "error" : left <= 25 ? "warning" : "success";
-	return `${ctx.ui.theme.fg("dim", `${window.label}:`)}${ctx.ui.theme.fg(color, `${left}%`)}${ctx.ui.theme.fg("dim", countdown(window.resetAt))}`;
+	return `${ctx.ui.theme.fg("dim", `${window.label}:`)}${ctx.ui.theme.fg(color, `${left}%`)}${ctx.ui.theme.fg("dim", footerCountdown(window.resetAt))}`;
 }
 
 function renderSnapshot(ctx: ExtensionContext, value: Snapshot): string {
@@ -662,6 +637,8 @@ function renderSnapshot(ctx: ExtensionContext, value: Snapshot): string {
 
 export default function providerUsage(pi: ExtensionAPI): void {
 	const snapshots = new Map<string, Snapshot>();
+	/** Last fetch failure per provider id, summarized by the popup when hidden. */
+	const errors = new Map<string, string>();
 	let activeContext: ExtensionContext | undefined;
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
 	const inFlight = new Map<string, Promise<void>>();
@@ -703,9 +680,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 		Footer.invalidate();
 	};
 
-	const refresh = async (ctx: ExtensionContext, notify = false) => {
-		const provider = findProvider(ctx.model);
-		if (!provider) return;
+	const refreshProvider = async (provider: ProviderSpec, ctx: ExtensionContext, notify = false) => {
 		activeContext = ctx;
 
 		const existing = inFlight.get(provider.id);
@@ -713,9 +688,10 @@ export default function providerUsage(pi: ExtensionAPI): void {
 
 		const run = (async () => {
 			try {
-				const auth = await readAuthEntry(provider.authKey);
+				const auth = provider.authKey !== undefined ? await readAuthEntry(provider.authKey) : {};
 				const value = await provider.fetch(auth);
 				snapshots.set(provider.id, value);
+				errors.delete(provider.id);
 				try {
 					render(ctx);
 				} catch {
@@ -723,6 +699,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 				}
 				if (notify) ctx.ui.notify(`${provider.name} usage refreshed`, "info");
 			} catch (error) {
+				errors.set(provider.id, error instanceof Error ? error.message : String(error));
 				try {
 					render(ctx);
 				} catch {
@@ -739,6 +716,18 @@ export default function providerUsage(pi: ExtensionAPI): void {
 
 		inFlight.set(provider.id, run);
 		return run;
+	};
+
+	const refresh = (ctx: ExtensionContext, notify = false) => {
+		const provider = findProvider(ctx.model);
+		if (!provider) return Promise.resolve();
+		return refreshProvider(provider, ctx, notify);
+	};
+
+	/** Fetch every tracked provider in parallel; failures land in `errors` for the popup. */
+	const refreshAll = (ctx: ExtensionContext) => {
+		activeContext = ctx;
+		return Promise.all(PROVIDERS.map((provider) => refreshProvider(provider, ctx)));
 	};
 
 	const updateModelVisibility = (ctx: ExtensionContext) => {
@@ -854,7 +843,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 					return;
 				}
 				const maxCredits = maxCreditsArg === undefined ? undefined : Number(maxCreditsArg);
-				if (maxCreditsArg !== undefined && (!Number.isFinite(maxCredits) || maxCredits <= 0)) {
+				if (maxCreditsArg !== undefined && (maxCredits === undefined || !Number.isFinite(maxCredits) || maxCredits <= 0)) {
 					ctx.ui.notify("maxCredits must be a positive number.", "error");
 					return;
 				}
@@ -943,6 +932,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 					delete auth[COPILOT_BILLING_AUTH_KEY];
 					await writeAuthFile(auth);
 					snapshots.delete("copilot");
+					errors.delete("copilot");
 					ctx.ui.notify("Copilot billing token removed.", "info");
 					updateModelVisibility(ctx);
 				} catch (error) {
@@ -1000,16 +990,39 @@ export default function providerUsage(pi: ExtensionAPI): void {
 		}));
 	}
 
+	/** Open the all-providers overview as a floating overlay. */
+	const openPopup = async (ctx: ExtensionContext) => {
+		if (!ctx.hasUI) {
+			// No TUI (print/RPC mode): fall back to the plain text status.
+			const status = SUBCOMMANDS.find((cmd) => cmd.name === "status");
+			if (status) await status.handler("", ctx);
+			return;
+		}
+		await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
+			return new UsagePopup({
+				theme,
+				done,
+				requestRender: () => tui.requestRender(),
+				getRows: () => PROVIDERS.map((provider) => ({
+					name: provider.name,
+					snapshot: snapshots.get(provider.id),
+					error: errors.get(provider.id),
+				})),
+				refresh: () => {
+					void refreshAll(ctx).then(() => tui.requestRender());
+				},
+				isRefreshing: () => inFlight.size > 0,
+			});
+		}, { overlay: true, overlayOptions: { anchor: "center", width: USAGE_POPUP_WIDTH } });
+	};
+
 	pi.registerCommand("usage", {
-		description: "Provider usage commands: refresh, status, set-copilot-token, set-copilot-max, unset-copilot-token",
+		description: "All-providers usage popup; subcommands: refresh, status, set-copilot-token, set-copilot-max, unset-copilot-token",
 		getArgumentCompletions: subcommandCompletions,
 		handler: async (args, ctx) => {
 			const trimmed = args.trim();
 			if (!trimmed) {
-				const names = SUBCOMMANDS.map((cmd) => cmd.name);
-				const choice = ctx.hasUI ? await ctx.ui.select("Usage command", names) : undefined;
-				const cmd = choice ? findSubcommand(choice) : undefined;
-				if (cmd) await cmd.handler("", ctx);
+				await openPopup(ctx);
 				return;
 			}
 
