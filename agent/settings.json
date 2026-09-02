@@ -2,9 +2,9 @@
   "lastChangelogVersion": "0.84.4",
   "theme": "dark",
   "externalEditor": "zed",
-  "defaultProvider": "opencode-go",
-  "defaultModel": "ox-alpha-free",
-  "defaultThinkingLevel": "high",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
+  "defaultThinkingLevel": "xhigh",
   "packages": [
     "npm:pi-mcp-adapter",
     "local-packages/ask-user-question",
@@ -15,7 +15,6 @@
     "npm:pi-blackhole",
     "npm:@juicesharp/rpiv-advisor",
     "npm:pi-hashline-edit-pro",
-    "git:git@github.com:gdezan/pi-auto-review",
     "npm:@ff-labs/pi-fff"
   ],
   "hideThinkingBlock": false,
