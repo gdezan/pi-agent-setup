@@ -1,5 +1,5 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.1",
   "theme": "dark",
   "externalEditor": "zed",
   "defaultProvider": "openai-codex",
@@ -14,8 +14,9 @@
     "npm:pi-cursor-sdk",
     "npm:pi-blackhole",
     "npm:@juicesharp/rpiv-advisor",
-    "npm:pi-hashline-edit-pro",
-    "npm:@ff-labs/pi-fff"
+    "npm:@ff-labs/pi-fff",
+    "npm:pi-web-search",
+    "npm:pi-agent-browser-native"
   ],
   "hideThinkingBlock": false,
   "compaction": {
