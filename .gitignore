@@ -1,4 +1,6 @@
 node_modules/
+.toolkit-dependencies.lock
+.toolkit-dependencies.pending
 __pycache__/
 *.pyc
 .DS_Store

@@ -28,6 +28,7 @@ function canonicalPath(path) {
 
 /** Reject source/runtime overlap, including paths hidden behind parent symlinks. */
 export function resolveToolkitAgentDir(root, requested) {
+  if (/[\x00-\x1f\x7f]/.test(requested)) throw new Error("Unsafe toolkit destination: control characters are not supported");
   const source = realpathSync(root);
   const agentDir = canonicalPath(requested);
   if (agentDir === dirname(agentDir) || isInside(source, agentDir) || isInside(agentDir, source)) {
@@ -40,7 +41,7 @@ export function resolveToolkitAgentDir(root, requested) {
 
 /** Keep installer writes inside the agent directory; only the two deliberate resource links are allowed. */
 export function assertToolkitWritePaths(agentDir) {
-  for (const name of ["toolkits", "toolkit-backups", "settings.json", "toolkit-state.json"]) {
+  for (const name of ["toolkits", "toolkit-backups", "settings.json", "toolkit-state.json", "toolkit-setup.lock"]) {
     const path = join(agentDir, name);
     const stat = toolkitPathStat(path);
     if (stat?.isSymbolicLink()) throw new Error(`Refusing toolkit write through symlink: ${path}`);
@@ -127,7 +128,8 @@ export function replaceToolkitPath({ target, backupRoot, backupName, create }) {
   mkdirSync(dirname(target), { recursive: true, mode: 0o700 });
   const staging = join(dirname(target), `.toolkit-stage-${randomUUID()}`);
   const previous = toolkitPathStat(target);
-  const backup = join(backupRoot, backupName);
+  let backup = join(backupRoot, backupName);
+  if (toolkitPathStat(backup)) backup += `-${randomUUID()}`;
   let moved = false;
   try {
     create(staging);
@@ -162,10 +164,23 @@ export function deployToolkitPackage({ root, target, files, link, backupRoot }) 
   return true;
 }
 
+/** Fingerprint deployed files and links without traversing symlinks; missing paths have a null fingerprint. */
+export function toolkitPathHash(path) {
+  const stat = toolkitPathStat(path);
+  if (!stat) return null;
+  if (stat.isSymbolicLink()) return toolkitContentHash(`link:${readlinkSync(path)}`);
+  if (stat.isFile()) return toolkitContentHash(Buffer.concat([Buffer.from(`file:${stat.mode & 0o111}:`), readFileSync(path)]));
+  if (!stat.isDirectory()) throw new Error(`Unsupported toolkit destination file: ${path}`);
+  return toolkitContentHash(JSON.stringify(readdirSync(path).sort().map((name) => [name, toolkitPathHash(join(path, name))])));
+}
+
 /** Write JSON atomically and back up the previous file, preserving byte-identical files on reruns. */
 export function writeToolkitJson({ path, value, backupRoot, backupName }) {
   const content = `${JSON.stringify(value, null, 2)}\n`;
-  if (toolkitPathStat(path)?.isFile() && readFileSync(path, "utf8") === content) return;
+  if (toolkitPathStat(path)?.isFile()) {
+    const existing = readFileSync(path, "utf8");
+    if (existing === content || JSON.stringify(JSON.parse(existing.replace(/^\uFEFF/, ""))) === JSON.stringify(value)) return;
+  }
   replaceToolkitPath({ target: path, backupRoot, backupName,
     create: (staging) => writeFileSync(staging, content, { mode: 0o600 }),
   });

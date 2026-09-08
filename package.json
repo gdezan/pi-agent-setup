@@ -9,15 +9,22 @@
     "type": "git",
     "url": "git+ssh://git@github.com/gdezan/pi-agent-setup.git"
   },
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "setup": "node setup.mjs",
     "link": "node setup.mjs --link",
     "test": "node --test scripts/*.test.mjs",
     "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/local-packages/ask-user-question/tests/*.test.ts",
-    "test:skills": "python3 -B -m unittest discover -s dotfiles/skills/analyze-sessions/scripts -p '*_test.py'"
+    "test:skills": "python3 -B -m unittest discover -s dotfiles/skills/analyze-sessions/scripts -p '*_test.py'",
+    "test:wizard": "python3 -B scripts/toolkit-wizard.test.py"
   },
-  "files": ["dotfiles/extensions", "dotfiles/local-packages", "dotfiles/skills"],
+  "files": [
+    "dotfiles/extensions",
+    "dotfiles/local-packages",
+    "dotfiles/skills"
+  ],
   "pi": {
     "extensions": [
       "./dotfiles/extensions/pi-footer/index.ts",
@@ -27,12 +34,22 @@
       "./dotfiles/local-packages/ask-user-question/index.ts",
       "./dotfiles/local-packages/rpiv-todo-no-overlay/index.ts"
     ],
-    "skills": ["./dotfiles/skills"]
+    "skills": [
+      "./dotfiles/skills"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.8.0",
+    "diff": "8.0.4",
+    "semver": "7.8.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1"
   }
 }

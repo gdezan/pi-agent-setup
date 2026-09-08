@@ -15,16 +15,18 @@ cd pi-agent-setup
 node setup.mjs
 ```
 
-Setup asks which third-party packages to install, then confirms before writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close running Pi sessions first. Start `pi` and use `/login` to authenticate.
+The first run installs the wizard's pinned dependencies. Setup shows one package checklist and a change preview before writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close Pi first. Start `pi` afterward and use `/login` to authenticate.
+
+Run setup as often as needed. It keeps installed packages, remembers your choices, and makes no changes on an unchanged rerun. Recognized legacy extensions stay in place; their bundled duplicates are disabled.
 
 > [!IMPORTANT]
-> If your existing `~/.pi` is a checkout of this repository, **do not pull this layout into it**. Clone into a separate folder and use the preview below. Setup refuses duplicate legacy resources rather than migrating them automatically.
+> If your existing `~/.pi` is a checkout of this repository, **do not pull this layout into it**. Clone into a separate folder. Setup can use that existing installation without moving its extensions.
 
 ## Customize
 
 | File | What to change |
 | --- | --- |
-| [`manifest.json`](manifest.json) | Third-party packages offered during setup |
+| [`manifest.json`](manifest.json) | Package checklist and known legacy resource paths |
 | [`preferences.json`](preferences.json) | Shared display and compaction defaults |
 | [`dotfiles/`](dotfiles/) | Custom extensions, skills, and system instructions |
 
@@ -43,11 +45,16 @@ git pull
 node setup.mjs --reuse-selection
 ```
 
-Add `--link` if using link mode, or `--apply-preferences` to overwrite existing values for the shared preference keys. Use `--skip-packages` to update only custom resources without downloading packages.
+Copy/link mode is remembered. Optional flags:
 
-Replaced files are backed up under `<agent-dir>/toolkit-backups/`. Locally edited system instructions require explicit replacement. If a package install fails, fix the reported issue and rerun; completed installs are kept.
+- `--update-packages`: update selected third-party packages, respecting their pins.
+- `--repair`: reinstall selected packages that are missing or broken.
+- `--apply-preferences`: overwrite the shared preference keys.
+- `--skip-packages`: work only on custom resources and preferences.
 
-Run `node setup.mjs --help` for all options, including non-interactive package selection and dry runs.
+For local edits or uncertain matches, the wizard asks what to keep and remembers the answer. File conflicts offer a diff and backed-up replacement. Backups go under `<agent-dir>/toolkit-backups/`. Interrupted package operations resume with `--reuse-selection`; completed installs are skipped.
+
+Use `--dry-run` to preview without writes or downloads; wizard dependencies must already be installed. For automation, use an explicit selection or saved choices, plus `--json`. Unresolved conflicts require an explicit policy such as `--conflicts keep`; `--yes` does not resolve them. See `node setup.mjs --help`.
 
 ## Preview alongside an existing setup
 
@@ -63,7 +70,8 @@ This installs only the custom resources into a separate Pi directory. Use the sa
 ```sh
 npm test
 npm run test:resources
-npm run test:skills     # Python 3 required
+npm run test:skills     # Python 3
+npm run test:wizard     # Python 3, Unix pseudo-terminal
 ```
 
 Inspired by [pi-agent-toolkit](https://github.com/danchamorro/pi-agent-toolkit).

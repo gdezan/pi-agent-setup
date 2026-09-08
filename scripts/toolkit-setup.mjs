@@ -1,226 +1,223 @@
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
-import { parseArgs } from "node:util";
-import {
-  collectToolkitFiles, resolveToolkitAgentDir, assertToolkitWritePaths, toolkitPathStat,
-  toolkitContentHash, toolkitLinkMatches, deployToolkitPackage, replaceToolkitPath, writeToolkitJson,
-} from "./toolkit-files.mjs";
-import {
-  readToolkitJson, validateToolkitManifest, mergeToolkitPreferences, registerToolkitPackage,
-  findToolkitPackage, toolkitPackageSource,
-} from "./toolkit-settings.mjs";
+import { collectToolkitFiles, resolveToolkitAgentDir, assertToolkitWritePaths, toolkitContentHash, toolkitCopyMatches,
+  toolkitLinkMatches, toolkitPathHash, deployToolkitPackage, replaceToolkitPath, writeToolkitJson } from "./toolkit-files.mjs";
+import { readToolkitJson, validateToolkitManifest } from "./toolkit-settings.mjs";
+import { TOOLKIT_PACKAGE_SOURCE, inspectToolkitInventory, validateToolkitResources, verifyToolkitInventory } from "./toolkit-inventory.mjs";
+import { readToolkitState, planToolkitSetup, reconcileToolkitExclusions, snapshotToolkitPlan, summarizeToolkitPlan } from "./toolkit-plan.mjs";
+import { parseToolkitOptions, TOOLKIT_HELP } from "./toolkit-options.mjs";
+import { createToolkitUI } from "./toolkit-ui.mjs";
+import { runToolkitCommand, ToolkitCancelled } from "./toolkit-command.mjs";
 
-const TOOLKIT_SOURCE = "toolkits/pi-agent-setup";
-const HELP = `Portable Pi toolkit
-
-Usage: node setup.mjs [options]
-
-Without package flags, ask which third-party packages to install. Choices stay
-in the destination's toolkit-state.json, never in this repository.
-
-  --agent-dir PATH       Destination (PI_CODING_AGENT_DIR or ~/.pi/agent)
-  --link                 Link owned resources to this checkout instead of copying
-  --dry-run              Validate and print the plan without writes or commands
-  --list-packages        List package IDs from manifest.json
-  --packages ID,ID       Select packages explicitly (suitable for scripts)
-  --all-packages         Select every package in the manifest
-  --skip-packages        Deploy owned resources only; keep saved package choices
-  --reuse-selection     Reuse this machine's saved choices without prompting
-  --apply-preferences   Apply shared preferences over existing values
-  --replace-config      Back up and replace a conflicting APPEND_SYSTEM.md
-  --help                 Show this help
-
-Setup never uninstalls packages or copies credentials, sessions, or caches.
-Existing package pins and resource filters are preserved. Close Pi before setup.
-Pi and Node >=22.19 must already be installed; setup does not change either.
-`;
-
-function runPiInstall(source, agentDir) {
-  const result = spawnSync("pi", ["install", source, "--no-approve"], {
-    cwd: agentDir,
-    env: {
-      ...process.env,
-      PI_CODING_AGENT_DIR: agentDir,
-      PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"),
-      PI_SKIP_VERSION_CHECK: "1",
-      PI_TELEMETRY: "0",
-    },
-    stdio: "inherit",
-  });
-  if (result.error) throw new Error(`Pi package installation failed: ${source}: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`Pi package installation failed: ${source} (exit ${result.status}, signal ${result.signal ?? "none"})`);
-}
-
-function assertNoLegacyToolkitResources(root, agentDir, settings) {
-  const collisions = [];
-  for (const kind of ["extensions", "skills"]) {
-    for (const name of readdirSync(join(root, "dotfiles", kind))) {
-      const path = join(agentDir, kind, name);
-      if (toolkitPathStat(path)) collisions.push(path);
-    }
-  }
-  for (const name of readdirSync(join(root, "dotfiles", "local-packages"))) {
-    const source = `local-packages/${name}`;
-    if (findToolkitPackage(settings.packages ?? [], source, agentDir)) collisions.push(source);
-  }
-  if (collisions.length) {
-    throw new Error(`Legacy Pi resources would load twice: ${collisions.join(", ")}. Use an empty --agent-dir; migrate the existing installation separately.`);
+/** Run one Pi package operation asynchronously; no shell, interactive child input, or mixed wizard output. */
+export async function runToolkitPackageCommand(source, agentDir, { action, signal }) {
+  const args = action === "update" ? ["update", "--extension", source, "--no-approve"] : ["install", source, "--no-approve"];
+  try {
+    await runToolkitCommand({ command: "pi", args, cwd: agentDir, signal, env: {
+      ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"),
+      PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0", GIT_TERMINAL_PROMPT: "0",
+      GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND || "ssh -o BatchMode=yes",
+    } });
+  } catch (error) {
+    if (error instanceof ToolkitCancelled) throw error;
+    throw new Error(`Pi package operation failed: ${source}: ${error.message}\nRerun setup with --reuse-selection to retry.`);
   }
 }
 
-function readToolkitState(path) {
-  const state = readToolkitJson(path, {});
-  if (Object.keys(state).length && (state.version !== 1 || state.ownsPackage !== true ||
-      !Array.isArray(state.selectedPackages) || state.selectedPackages.some((id) => typeof id !== "string") ||
-      typeof state.appendSystemHash !== "string")) {
-    throw new Error(`Invalid toolkit state: ${path}`);
+function selectionIds(options, state, manifest) {
+  if (options.packages !== undefined) {
+    const ids = [...new Set(options.packages.split(",").map((id) => id.trim()))];
+    if (ids.some((id) => !id)) throw new Error("Empty toolkit package selection: use --skip-packages instead");
+    return ids;
   }
-  return state;
+  if (options["all-packages"]) return manifest.packages.map((entry) => entry.id);
+  if (options["skip-packages"]) return [];
+  if (options["reuse-selection"]) {
+    if (!state.selectedPackages) throw new Error("No saved toolkit package selection: run setup interactively or use --packages");
+    return state.selectedPackages.filter((id) => manifest.packages.some((entry) => entry.id === id));
+  }
 }
 
-function assertAppendSystemOwnership(target, source, content, state, replaceConfig) {
-  const stat = toolkitPathStat(target);
-  if (!stat) return;
-  if (toolkitLinkMatches(target, source)) return;
-  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`Unmanaged toolkit instruction path: ${target}`);
-  const current = readFileSync(target);
-  if (current.equals(content) || toolkitContentHash(current) === state.appendSystemHash || replaceConfig) return;
-  throw new Error(`Local Pi instructions would be overwritten: ${target}. Review them first, then use --replace-config to back up and replace.`);
+function checkSelection(ids, manifest) {
+  for (const id of ids) {
+    if (!manifest.packages.some((entry) => entry.id === id)) throw new Error(`Unknown toolkit package ID: ${id}. See --list-packages.`);
+  }
 }
 
-function createToolkitQuestions(input, output) {
-  const readline = createInterface({ input, output });
-  readline.on("SIGINT", () => readline.close());
-  return {
-    close: () => readline.close(),
-    async yesNo(message, defaultYes) {
-      while (true) {
-        const answer = await new Promise((accept, reject) => {
-          if (readline.closed) { reject(new Error("Toolkit setup cancelled before installation")); return; }
-          const cancelled = () => reject(new Error("Toolkit setup cancelled before installation"));
-          readline.once("close", cancelled);
-          readline.question(`${message} ${defaultYes ? "[Y/n]" : "[y/N]"} `, (value) => {
-            readline.removeListener("close", cancelled);
-            accept(value.trim().toLowerCase());
-          });
-        });
-        if (!answer) return defaultYes;
-        if (["y", "yes"].includes(answer)) return true;
-        if (["n", "no"].includes(answer)) return false;
-        output.write("Please answer yes or no.\n");
-      }
-    },
-  };
+function stateAfterDeployment(plan, files) {
+  const next = structuredClone(plan.state);
+  if (plan.resources.action !== "keep" || (next.ownsPackage && (plan.mode === "link" ?
+    toolkitLinkMatches(plan.resources.target, plan.root) : toolkitCopyMatches(plan.resources.target, files)))) {
+    next.packageHash = toolkitPathHash(plan.resources.target);
+  }
+  if (plan.instructions.owned) next.appendSystemHash = toolkitContentHash(plan.instructions.content);
+  return next;
 }
 
-/** Run toolkit setup against an explicit source root; dependency injection keeps tests off the live Pi installation. */
-export async function runToolkitSetup({ root, argv, input = process.stdin, output = process.stdout, installPackage = runPiInstall }) {
-  const { values } = parseArgs({ args: argv, options: {
-    "agent-dir": { type: "string" }, link: { type: "boolean" }, "dry-run": { type: "boolean" },
-    "list-packages": { type: "boolean" }, packages: { type: "string" },
-    "all-packages": { type: "boolean" }, "skip-packages": { type: "boolean" },
-    "reuse-selection": { type: "boolean" }, "apply-preferences": { type: "boolean" },
-    "replace-config": { type: "boolean" }, help: { type: "boolean", short: "h" },
-  } });
-  if (values.help) { output.write(HELP); return; }
+/** Inspect, plan, apply, and verify a global setup; dependencies keep tests off the live installation. */
+export async function runToolkitSetup({ root, argv, input = process.stdin, output = process.stdout,
+  installPackage = runToolkitPackageCommand, uiFactory = createToolkitUI, signal: suppliedSignal }) {
+  const options = parseToolkitOptions(argv);
+  if (options.help) { output.write(options.json ? `${JSON.stringify({ help: TOOLKIT_HELP })}\n` : TOOLKIT_HELP); return; }
   const manifest = validateToolkitManifest(readToolkitJson(join(root, "manifest.json")));
-  if (values["list-packages"]) {
-    for (const entry of manifest.packages) output.write(`${entry.id}: ${entry.source}\n  ${entry.description}\n`);
+  if (options["list-packages"]) {
+    output.write(options.json ? `${JSON.stringify({ packages: manifest.packages })}\n` : manifest.packages.map((entry) => `${entry.id}: ${entry.source}\n  ${entry.description}\n`).join(""));
     return;
   }
-  const selectionFlags = ["packages", "all-packages", "skip-packages", "reuse-selection"];
-  if (selectionFlags.filter((key) => values[key] !== undefined).length > 1) {
-    throw new Error("Conflicting toolkit package flags: choose only one selection mode");
-  }
-  const agentDir = resolveToolkitAgentDir(root, values["agent-dir"] ?? process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
+  const agentDir = resolveToolkitAgentDir(root, options["agent-dir"] ?? process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent"));
   assertToolkitWritePaths(agentDir);
   const settingsPath = join(agentDir, "settings.json");
   const statePath = join(agentDir, "toolkit-state.json");
-  const packagePath = join(agentDir, TOOLKIT_SOURCE);
-  const appendSource = join(root, "dotfiles", "APPEND_SYSTEM.md");
-  const appendTarget = join(agentDir, "APPEND_SYSTEM.md");
-  const appendContent = readFileSync(appendSource);
   const settings = readToolkitJson(settingsPath, {});
   const state = readToolkitState(statePath);
   const preferences = readToolkitJson(join(root, "preferences.json"));
-  const mergedSettings = registerToolkitPackage(mergeToolkitPreferences(settings, preferences, values["apply-preferences"]), TOOLKIT_SOURCE, agentDir);
-  const files = collectToolkitFiles(root, readToolkitJson(join(root, "package.json")));
-  assertNoLegacyToolkitResources(root, agentDir, settings);
-  if (toolkitPathStat(packagePath) && !state.ownsPackage) {
-    throw new Error(`Unmanaged toolkit package destination: ${packagePath}`);
-  }
-  assertAppendSystemOwnership(appendTarget, appendSource, appendContent, state, values["replace-config"]);
-
-  let ids;
-  let questions;
+  const packageJson = readToolkitJson(join(root, "package.json"));
+  const files = collectToolkitFiles(root, packageJson);
+  validateToolkitResources(manifest, files);
+  if (settings.packages !== undefined && !Array.isArray(settings.packages)) throw new Error("Invalid Pi packages setting: expected an array");
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const signal = suppliedSignal ? AbortSignal.any([suppliedSignal, controller.signal]) : controller.signal;
+  process.once("SIGINT", abort);
+  process.once("SIGTERM", abort);
+  let locked = false;
+  let applied = false;
+  const lockPath = join(agentDir, "toolkit-setup.lock");
+  const checkAbort = () => { if (signal.aborted) throw new ToolkitCancelled(); };
   try {
-    if (values.packages !== undefined) {
-      ids = values.packages.split(",").map((id) => id.trim());
-      if (ids.some((id) => !id)) throw new Error("Empty toolkit package selection: use --skip-packages instead");
-    } else if (values["all-packages"]) ids = manifest.packages.map((entry) => entry.id);
-    else if (values["skip-packages"]) ids = [];
-    else if (values["reuse-selection"]) {
-      if (!state.selectedPackages) throw new Error("No saved toolkit package selection: run setup interactively first");
-      ids = state.selectedPackages;
-    } else {
-      if (!input.isTTY || !output.isTTY) {
-        throw new Error("Toolkit package selection requires a terminal: use --packages, --all-packages, --skip-packages, or --reuse-selection");
+    const ui = await uiFactory({ input, output, options, signal });
+    ui.start(agentDir);
+    const inspection = { root, agentDir, settings, manifest };
+    const inventory = await inspectToolkitInventory(inspection);
+    checkAbort();
+    const snapshot = snapshotToolkitPlan({ root, agentDir, packageJson, inventory });
+    let ids = selectionIds(options, state, manifest);
+    let plan;
+    const canChoose = ids === undefined && ui.interactive;
+    if (ids === undefined && !ui.interactive) {
+      if (!state.selectedPackages) throw new Error("Toolkit package selection requires a terminal or saved choices: use --packages, --all-packages, or --skip-packages");
+      ids = selectionIds({ "reuse-selection": true }, state, manifest);
+    }
+    const initial = state.selectedPackages?.filter((id) => manifest.packages.some((entry) => entry.id === id)) ?? inventory.packages.filter((entry) => entry.registered).map((entry) => entry.id);
+    while (true) {
+      if (canChoose) ids = await ui.packages(inventory, ids ?? initial);
+      checkSelection(ids, manifest);
+      const build = () => planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds: ids, options });
+      plan = build();
+      if (!options["dry-run"]) {
+        for (const conflict of plan.conflicts) {
+          if (!ui.interactive) throw new Error(`Toolkit decision required: ${conflict.conflictMessage} Use --conflicts keep, --repair, --replace-config, or --replace-resources as appropriate.`);
+          options.decisions ??= {};
+          options.decisions[conflict.conflictKey] = await ui.conflict(conflict, files, root);
+        }
+        plan = build();
       }
-      questions = createToolkitQuestions(input, output);
-      output.write("Choose third-party packages. Unselected packages already installed are kept.\n");
-      ids = [];
-      for (const entry of manifest.packages) {
-        const suggested = state.selectedPackages ? state.selectedPackages.includes(entry.id) : true;
-        if (await questions.yesNo(`${entry.id}: ${entry.description}\nInstall ${entry.source}?`, suggested)) ids.push(entry.id);
+      const settingsChanged = JSON.stringify(plan.settings) !== JSON.stringify(settings);
+      ui.plan(plan, settingsChanged);
+      if (options["dry-run"]) {
+        const receipt = { status: "planned", ...summarizeToolkitPlan(plan), message: "Dry run: no files written and no package installs or updates run." };
+        ui.finish(receipt); return receipt;
       }
+      // Calculate baseline metadata without rewriting files; this also upgrades safe v1 records once.
+      plan.state = stateAfterDeployment(plan, files);
+      const changes = [plan.resources, plan.instructions, ...plan.packages].some((entry) => entry.action !== "keep") || settingsChanged ||
+        JSON.stringify(plan.state) !== JSON.stringify(state);
+      if (!changes) {
+        await verifyToolkitInventory({ ...inspection, requireBundledResources: plan.resources.register && !plan.resources.keptConflict }, inventory);
+        const summary = summarizeToolkitPlan(plan);
+        const receipt = { status: "unchanged", ...summary,
+          ...(!summary.warnings.length ? { next: { command: "pi", env: { PI_CODING_AGENT_DIR: agentDir } } } : {}),
+          message: summary.warnings.length ? "No changes requested. Review the reported warnings." : "Everything is already set up." };
+        ui.finish(receipt); return receipt;
+      }
+      if (!ui.interactive || options.yes) break;
+      const choice = await ui.confirm({ canChoose });
+      if (choice === "cancel") throw new ToolkitCancelled();
+      if (choice === "back") {
+        if (canChoose) continue;
+        throw new ToolkitCancelled();
+      }
+      break;
     }
-    for (const id of ids) {
-      if (!manifest.packages.some((entry) => entry.id === id)) throw new Error(`Unknown toolkit package ID: ${id}. See --list-packages.`);
+    checkAbort();
+    assertToolkitWritePaths(agentDir);
+    mkdirSync(agentDir, { recursive: true, mode: 0o700 });
+    try { writeFileSync(lockPath, `${process.pid}\n`, { flag: "wx", mode: 0o600 }); locked = true; }
+    catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      let stale = false;
+      try {
+        const pid = Number.parseInt(readFileSync(lockPath, "utf8").trim(), 10);
+        if (!Number.isInteger(pid) || pid <= 0) throw new Error("invalid lock PID");
+        try { process.kill(pid, 0); } catch (probe) { if (probe.code === "ESRCH") stale = true; else throw probe; }
+      } catch (probe) {
+        if (!stale) throw new Error(`Toolkit setup is locked: ${lockPath}. Wait for the other setup; remove this file only if no setup is running.`);
+      }
+      if (!stale) throw new Error(`Toolkit setup is locked: ${lockPath}. Wait for the other setup; remove this file only if no setup is running.`);
+      rmSync(lockPath);
+      writeFileSync(lockPath, `${process.pid}\n`, { flag: "wx", mode: 0o600 });
+      locked = true;
     }
-    const selected = manifest.packages.filter((entry) => ids.includes(entry.id));
-    output.write(`\nSource: ${root}\nDestination: ${agentDir}\nMode: ${values.link ? "link" : "copy"}\n`);
-    output.write(`Owned resources: ${files.size} files, plus APPEND_SYSTEM.md\nPreferences: ${values["apply-preferences"] ? "apply shared keys" : "seed missing keys only"}\n`);
-    output.write(`Third-party packages: ${selected.map((entry) => entry.id).join(", ") || "none"}\n`);
-    if (values["dry-run"]) { output.write("Dry run: no files written and no commands executed.\n"); return; }
-    if (questions && !await questions.yesNo("Apply this setup? Close running Pi sessions first.", false)) {
-      output.write("Cancelled: no changes made.\n"); return;
-    }
-    questions?.close();
-    questions = undefined;
-    // Recheck the user-owned settings after the interactive menu, before publishing anything.
-    if (JSON.stringify(readToolkitJson(settingsPath, {})) !== JSON.stringify(settings)) {
-      throw new Error("Pi settings changed during toolkit setup: close Pi and retry");
+    if (snapshotToolkitPlan({ root, agentDir, packageJson, inventory }) !== snapshot) {
+      throw new Error("Toolkit inputs changed during setup: no planned changes applied. Close Pi and rerun setup.");
     }
     const backupRoot = join(agentDir, "toolkit-backups", `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`);
-    mkdirSync(agentDir, { recursive: true, mode: 0o700 });
-    deployToolkitPackage({ root, target: packagePath, files, link: values.link, backupRoot });
-    const appendMatches = values.link ? toolkitLinkMatches(appendTarget, appendSource) :
-      toolkitPathStat(appendTarget)?.isFile() && readFileSync(appendTarget).equals(appendContent);
-    if (!appendMatches) replaceToolkitPath({ target: appendTarget, backupRoot, backupName: "APPEND_SYSTEM.md", create(staging) {
-      if (values.link) symlinkSync(appendSource, staging, "file");
-      else writeFileSync(staging, appendContent, { mode: 0o600 });
+    applied = true;
+    if (plan.resources.action !== "keep") deployToolkitPackage({ root, target: plan.resources.target, files, link: plan.mode === "link", backupRoot });
+    if (plan.instructions.action !== "keep") replaceToolkitPath({ target: plan.instructions.target, backupRoot, backupName: "APPEND_SYSTEM.md", create(staging) {
+      if (plan.mode === "link") symlinkSync(plan.instructions.source, staging, "file");
+      else writeFileSync(staging, plan.instructions.content, { mode: 0o600 });
     } });
-    writeToolkitJson({ path: settingsPath, value: mergedSettings, backupRoot, backupName: "settings.json" });
-    // Ownership is recorded before network work so a failed package install is safely retryable.
-    writeToolkitJson({ path: statePath, backupRoot, backupName: "toolkit-state.json", value: {
-      version: 1, ownsPackage: true, appendSystemHash: toolkitContentHash(appendContent),
-      selectedPackages: values["skip-packages"] ? (state.selectedPackages ?? []) : selected.map((entry) => entry.id),
-    } });
-    for (const entry of selected) {
-      const current = readToolkitJson(settingsPath, {});
-      const installed = findToolkitPackage(current.packages ?? [], entry.source, agentDir);
-      const source = installed ? toolkitPackageSource(installed) : entry.source;
-      output.write(`Installing ${source}\n`);
-      await installPackage(source, agentDir);
+    plan.state = stateAfterDeployment(plan, files);
+    const operations = plan.packages.filter((entry) => ["install", "repair", "update"].includes(entry.action));
+    plan.state.pendingPackages = [...new Set([...plan.state.pendingPackages, ...operations.map((entry) => entry.id)])];
+    writeToolkitJson({ path: settingsPath, value: plan.settings, backupRoot, backupName: "settings.json" });
+    const saveState = () => writeToolkitJson({ path: statePath, value: plan.state, backupRoot, backupName: "toolkit-state.json" });
+    saveState();
+    for (const entry of operations) {
+      checkAbort();
+      await ui.task(`${entry.action === "update" ? "Updating" : entry.action === "repair" ? "Repairing" : "Installing"} ${entry.id}`, () =>
+        installPackage(entry.source, agentDir, { action: entry.action, signal }), `Package command finished: ${entry.id}`);
+      checkAbort();
+      const installed = await inspectToolkitInventory({ ...inspection, settings: readToolkitJson(settingsPath) });
+      if (!installed.packages.find((pkg) => pkg.id === entry.id)?.present) {
+        throw new Error(`Toolkit package verification failed: ${entry.source} is still missing or has the wrong version. Rerun with --reuse-selection to repair.`);
+      }
+      plan.state.pendingPackages = plan.state.pendingPackages.filter((id) => id !== entry.id);
+      saveState();
     }
-    if (existsSync(backupRoot)) output.write(`Previous files: ${backupRoot}\n`);
-    output.write("Toolkit setup complete. Use pi config to disable individual owned resources.\n");
-    output.write(`Start with: PI_CODING_AGENT_DIR=${JSON.stringify(agentDir)} pi\n`);
+    checkAbort();
+    // Newly installed packages can contain a catalogued resource. Exclude its bundled counterpart before verifying.
+    const currentSettings = readToolkitJson(settingsPath);
+    const after = await inspectToolkitInventory({ ...inspection, settings: currentSettings });
+    // A downloaded package can reveal a previously unknown copy. Do not infer equivalence from its contents.
+    const recheck = () => planToolkitSetup({ root, agentDir, settings: currentSettings, state: plan.state, manifest, preferences,
+      files, inventory: after, selectedIds: [], options: { ...options, "skip-packages": true } });
+    for (const conflict of recheck().conflicts.filter((entry) => entry.retainOnly)) {
+      if (!ui.interactive) throw new Error(`New package resources need a decision: ${conflict.conflictMessage} Rerun with --reuse-selection to choose, or --conflicts keep to retain them.`);
+      options.decisions ??= {};
+      options.decisions[conflict.conflictKey] = await ui.conflict(conflict, files, root);
+    }
+    checkAbort();
+    plan.state.keptConflicts = recheck().state.keptConflicts;
+    const reconciled = reconcileToolkitExclusions(currentSettings, agentDir, after.resources, plan.state.resourceExclusions);
+    plan.state.resourceExclusions = reconciled.exclusions;
+    writeToolkitJson({ path: settingsPath, value: reconciled.settings, backupRoot, backupName: "settings.json" });
+    saveState();
+    await ui.task("Verifying global resources", () => verifyToolkitInventory({ ...inspection, settings: reconciled.settings, requireBundledResources: plan.resources.register && !plan.resources.keptConflict }, inventory), "Verified global resources");
+    const summary = summarizeToolkitPlan(plan);
+    const receipt = { status: "applied", ...summary, backup: existsSync(backupRoot) ? backupRoot : undefined,
+      ...(!summary.warnings.length ? { next: { command: "pi", env: { PI_CODING_AGENT_DIR: agentDir } } } : {}),
+      message: summary.warnings.length ? "Setup finished with warnings; review them before starting Pi." : "Pi setup complete. Existing local resources were preserved." };
+    ui.finish(receipt); return receipt;
+  } catch (error) {
+    if (error instanceof ToolkitCancelled) error.message = applied ? "Toolkit setup cancelled. Completed changes were kept; rerun with --reuse-selection to resume." : "Toolkit setup cancelled. No changes made.";
+    throw error;
   } finally {
-    questions?.close();
+    if (locked) rmSync(lockPath, { force: true });
+    process.removeListener("SIGINT", abort);
+    process.removeListener("SIGTERM", abort);
   }
 }
