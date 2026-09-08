@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "packages": [
+    { "id": "mcp", "source": "npm:pi-mcp-adapter", "description": "MCP tool connections; configure servers and credentials locally" },
+    { "id": "workflow", "source": "git:git@github.com:gdezan/pi-workflow", "description": "Personal workflow tools; requires GitHub SSH access" },
+    { "id": "plannotator", "source": "npm:@plannotator/pi-extension", "description": "Interactive plan and code review" },
+    { "id": "cursor", "source": "npm:pi-cursor-sdk", "description": "Cursor SDK provider integration; requires local authentication" },
+    { "id": "blackhole", "source": "npm:pi-blackhole", "description": "Session context and recall tools" },
+    { "id": "advisor", "source": "npm:@juicesharp/rpiv-advisor", "description": "Advisor tools; configure providers locally" },
+    { "id": "fff", "source": "npm:@ff-labs/pi-fff", "description": "Fast local code search" },
+    { "id": "web-search", "source": "npm:pi-web-search", "description": "Provider-native web search" },
+    { "id": "browser", "source": "npm:pi-agent-browser-native", "description": "Browser automation; requires browser setup on this machine" },
+    { "id": "codex-conversion", "source": "npm:@howaboua/pi-codex-conversion", "description": "Codex conversion integration" }
+  ]
+}

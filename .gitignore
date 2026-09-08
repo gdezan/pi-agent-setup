@@ -1,54 +1,8 @@
-# Secrets
-agent/auth.json
-agent/trust.json
-
-# Machine-local / cache
-agent/sessions/
-agent/npm/
-agent/tmp/
-agent/git/
-agent/bin/
-agent/models-store.json
-
-# Machine-local system prompt additions (see extensions/machine-prompt.ts)
-agent/APPEND_SYSTEM.local.md
-agent/mcp-cache.json
-.pi/extensions/guardrails.json
-
-# Dependencies
-**/node_modules/
-**/package-lock.json
-**/bun.lock
-
-**/.git/
-
-# Logs
-agent/extensions/pi-permission-system/logs/
-
-# Cache indexes
-readseek/
-
-# Personal notes
-docs/
-
-# OS files
+node_modules/
+__pycache__/
+*.pyc
 .DS_Store
-Thumbs.db
-agent/cursor-sdk-model-list.json
-agent/prompt-cache-stats.json
-agent/pi-blackhole/*.json
 
-subagents/
-workflow.json
-agent/pi-blackhole/
-model-tiers.json
-guardrails.json
-pi-blackhole-config.json
-advisor.json
-agent/mcp.json
-agent/cursor-sdk-context-windows.json
-agent/extensions/auto-review.json
-agent/logs/
-agent/fff/
-cockpit.json
-extensions/auto-review.json
+# Local development overrides, never installation output.
+*.local.json
+*.local.md

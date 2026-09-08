@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Model } from "@earendil-works/pi-ai";
-import { CustomEditor, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { CustomEditor, getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, fuzzyFilter, Input, Spacer, Text } from "@earendil-works/pi-tui";
 import { Footer } from "./pi-footer/footer.ts";
 
@@ -21,7 +20,7 @@ type ModelTierRole = {
 type ModelTiersConfig = { roles: ModelTierRole[] };
 type PickerItem = { value: string; label: string; description?: string; searchText?: string };
 
-const AGENT_DIR = join(homedir(), ".pi", "agent");
+const AGENT_DIR = getAgentDir();
 const CONFIG_PATH = join(AGENT_DIR, "model-tiers.json");
 const THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 const DEFAULT_CONFIG: ModelTiersConfig = {

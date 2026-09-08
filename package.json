@@ -1,0 +1,38 @@
+{
+  "name": "@gdezan/pi-agent-setup",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable personal Pi resources and a selective, machine-local installer",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/gdezan/pi-agent-setup.git"
+  },
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "setup": "node setup.mjs",
+    "link": "node setup.mjs --link",
+    "test": "node --test scripts/*.test.mjs",
+    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/local-packages/ask-user-question/tests/*.test.ts",
+    "test:skills": "python3 -B -m unittest discover -s dotfiles/skills/analyze-sessions/scripts -p '*_test.py'"
+  },
+  "files": ["dotfiles/extensions", "dotfiles/local-packages", "dotfiles/skills"],
+  "pi": {
+    "extensions": [
+      "./dotfiles/extensions/pi-footer/index.ts",
+      "./dotfiles/extensions/model-tiers.ts",
+      "./dotfiles/extensions/provider-usage.ts",
+      "./dotfiles/extensions/pi-cache-observer/index.ts",
+      "./dotfiles/local-packages/ask-user-question/index.ts",
+      "./dotfiles/local-packages/rpiv-todo-no-overlay/index.ts"
+    ],
+    "skills": ["./dotfiles/skills"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}

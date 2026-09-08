@@ -1,0 +1,8 @@
+{
+  "theme": "dark",
+  "hideThinkingBlock": false,
+  "compaction": { "enabled": true },
+  "autocompleteMaxVisible": 10,
+  "terminal": { "showTerminalProgress": true },
+  "tuiMode": "fullscreen"
+}

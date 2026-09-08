@@ -8,7 +8,8 @@ export type AskUserConfig = {
 	promptGuidelines?: string[];
 };
 
-const CONFIG_PATH = join(homedir(), ".pi", "agent", "ask-user-question.json");
+const ASK_USER_AGENT_DIR = process.env.PI_CODING_AGENT_DIR?.trim() || join(homedir(), ".pi", "agent");
+const CONFIG_PATH = join(ASK_USER_AGENT_DIR, "ask-user-question.json");
 
 /** Load the small optional configuration for overlay collapse and prompt guidance. */
 export function loadAskUserConfig(): AskUserConfig {
