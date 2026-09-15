@@ -2,7 +2,7 @@
 
 My [Pi](https://pi.dev) extensions, skills, and preferences, ready to install on another machine. Choose packages during setup; model choices, credentials, and session history stay local.
 
-Includes a custom footer, model tiers, usage and cache displays, questionnaire and todo tools, plus Impeccable and session-analysis skills.
+Includes a custom footer, model tiers, usage and cache displays, automatic session naming, questionnaire and todo tools, plus Impeccable and session-analysis skills.
 
 ## Install
 

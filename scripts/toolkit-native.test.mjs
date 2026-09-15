@@ -9,7 +9,7 @@ import test from "node:test";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 for (const legacy of [false, true]) {
-  test(`native Pi loads exactly six extensions and two skills with ${legacy ? "retained legacy" : "fresh copied"} resources`, (t) => {
+  test(`native Pi loads exactly seven extensions and two skills with ${legacy ? "retained legacy" : "fresh copied"} resources`, (t) => {
     const base = mkdtempSync(join(tmpdir(), "pi-wizard-native-"));
     t.after(() => rmSync(base, { recursive: true, force: true }));
     const agentDir = join(base, "agent");
@@ -34,7 +34,7 @@ for (const legacy of [false, true]) {
       await loader.reload();
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
-      assert.equal(loader.getExtensions().extensions.length, 6);
+      assert.equal(loader.getExtensions().extensions.length, 7);
       assert.equal(loader.getSkills().skills.length, 2);
     `], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
