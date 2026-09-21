@@ -16,7 +16,7 @@
     "setup": "node setup.mjs",
     "link": "node setup.mjs --link",
     "test": "node --test scripts/*.test.mjs",
-    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/extensions/tests/session-autoname.test.ts dotfiles/local-packages/ask-user-question/tests/*.test.ts",
+    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/extensions/pi-footer/sections/*.test.ts dotfiles/extensions/tests/session-autoname.test.ts dotfiles/local-packages/ask-user-question/tests/*.test.ts",
     "test:skills": "python3 -B -m unittest discover -s dotfiles/skills/analyze-sessions/scripts -p '*_test.py'",
     "test:wizard": "python3 -B scripts/toolkit-wizard.test.py"
   },
