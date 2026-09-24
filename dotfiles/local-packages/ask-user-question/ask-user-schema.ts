@@ -15,5 +15,5 @@ export const AskQuestionSchema = Type.Object({
 });
 
 export const AskUserQuestionParamsSchema = Type.Object({
-	questions: Type.Array(AskQuestionSchema, { description: "One to four questions" }),
+	questions: Type.Array(AskQuestionSchema, { description: "One to eight questions" }),
 });

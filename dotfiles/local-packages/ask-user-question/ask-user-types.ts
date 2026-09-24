@@ -1,6 +1,7 @@
 /** Structured input and output types for the private ask-user questionnaire. */
 
-export const MAX_QUESTIONS = 4;
+/** Maximum number of questions in one ask-user questionnaire. */
+export const MAX_QUESTIONS = 8;
 export const MIN_OPTIONS = 2;
 export const MAX_OPTIONS = 4;
 export const MAX_FIELD_LENGTH = 4000;

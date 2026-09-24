@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { validateAskQuestionnaire } from "../ask-user-validation.ts";
+import { MAX_QUESTIONS } from "../ask-user-types.ts";
 
 const validQuestion = {
 	id: "scope",
@@ -39,6 +40,21 @@ test("rejects malformed option counts and reserved labels", () => {
 	});
 	assert.equal(reserved.ok, false);
 	if (!reserved.ok) assert.equal(reserved.error, "reserved_label");
+});
+
+test("accepts eight questions but rejects a ninth", () => {
+	const questions = Array.from({ length: 8 }, (_, index) => ({
+		...validQuestion,
+		id: `q${index}`,
+		question: `Which scope for item ${index}?`,
+	}));
+	assert.equal(MAX_QUESTIONS, 8);
+	const accepted = validateAskQuestionnaire({ questions });
+	assert.equal(accepted.ok, true);
+	if (accepted.ok) assert.equal(accepted.questionnaire.questions.length, 8);
+	const rejected = validateAskQuestionnaire({ questions: [...questions, { ...validQuestion, id: "q8", question: "Which scope for item 8?" }] });
+	assert.equal(rejected.ok, false);
+	if (!rejected.ok) assert.equal(rejected.error, "too_many_questions");
 });
 
 test("rejects an oversized total payload", () => {

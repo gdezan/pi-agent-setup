@@ -23,14 +23,15 @@ export const ASK_USER_QUESTION_TOOL_NAME = "ask_user_question";
 export const ANSWER_COMMAND_NAME = "answer";
 export const HERDR_BLOCKED_EVENT = "herdr:blocked";
 
-const TOOL_DESCRIPTION = `Ask the user one or more structured questions during execution. Use this when you need concrete decisions before continuing.
+const TOOL_DESCRIPTION = `Ask the user one or more structured questions during execution. Use this when you need concrete decisions before continuing. Before calling this tool, explain the relevant findings, your recommendation, and the trade-offs needed to decide. Make each question and its options understandable without relying on an explanation after the tool returns.
 
-Ask one to four questions in a single call. Each question needs two to four authored options, and every question also gets Type something and Skip actions automatically. Use multiSelect when more than one authored option can be selected. Escape cancels the entire questionnaire and stops the current agent run.`;
+Ask one to eight questions in a single call. Each question needs two to four authored options, and every question also gets Type something and Skip actions automatically. Use multiSelect when more than one authored option can be selected. Escape cancels the entire questionnaire and stops the current agent run.`;
 
-const DEFAULT_PROMPT_SNIPPET = "Ask the user up to 4 structured questions when requirements are ambiguous";
+const DEFAULT_PROMPT_SNIPPET = "Ask the user up to 8 structured questions when requirements are ambiguous";
 const DEFAULT_PROMPT_GUIDELINES = [
 	"Use ask_user_question whenever the user's request is underspecified and you cannot proceed without concrete decisions.",
-	"Group related clarifying questions into one call. Ask one to four questions, with two to four distinct options per question.",
+	"Before calling ask_user_question, write the decision-relevant context, recommendation, and trade-offs in your assistant message. Make each question self-contained; do not save the explanation needed to answer it for after the questionnaire.",
+	"Group related clarifying questions into one call. Ask one to eight questions, with two to four distinct options per question.",
 	"Every option requires a useful description. Do not author Type something or Skip options; those actions are added automatically.",
 	"Use multiSelect when multiple authored options may be selected. Treat cancellation as a hard stop and do not guess the user's answer.",
 ];
@@ -41,7 +42,7 @@ Return JSON only, with this exact shape:
 Rules:
 - Extract only questions or decisions that still need a user answer.
 - Keep questions in their original order and make them concise without changing their meaning.
-- Return at most four questions.
+- Return at most eight questions.
 - Every question must have two to four distinct concrete options and a useful description for each option.
 - For open-ended questions, include reasonable choices plus a freeform path; do not author options named Other, Next, Type something, or Skip.
 - Use stable IDs such as q1, q2. Use multiSelect only when multiple choices may be selected.

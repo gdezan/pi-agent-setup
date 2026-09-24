@@ -5,7 +5,8 @@ This package replaces `@juicesharp/rpiv-ask-user-question` in the local Pi insta
 ## Runtime behavior
 
 - Registers the sequential `ask_user_question` tool.
-- Supports one to four questions, single-select, multi-select, freeform answers, explicit Skip, review/submit for multi-question prompts, and RPC dialogs.
+- Prompts the agent to explain decision context and trade-offs before opening a questionnaire, and to make each question self-contained.
+- Supports one to eight questions, single-select, multi-select, freeform answers, explicit Skip, review/submit for multi-question prompts, and RPC dialogs.
 - Emits `herdr:blocked` while a questionnaire is waiting for input and clears it in `finally`.
 - Escape cancels the entire questionnaire and returns a terminating tool result.
 - Uses runtime validation with repairable field paths and generous safety limits rather than presentation-length schema limits.
