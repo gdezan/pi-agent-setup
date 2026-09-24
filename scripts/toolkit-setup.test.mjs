@@ -181,14 +181,15 @@ test("copy updates remove obsolete package files only after backing up the owned
   assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "package/dotfiles/extensions/obsolete.ts"), "utf8"), "old source");
 });
 
-test("legacy loose resources and local packages are retained without duplicate load registrations", async (t) => {
+test("differing legacy resources require a decision, and keeping them avoids duplicate loads", async (t) => {
   const f = fixture(t);
   mkdirSync(join(f.agentDir, "extensions"), { recursive: true });
   writeFileSync(join(f.agentDir, "extensions/demo.ts"), "export default function legacyDemo() {}\n");
   writeJson(join(f.agentDir, "local-packages/local/package.json"), { name: "@local/local", pi: { extensions: ["./index.ts"] } });
   writeFileSync(join(f.agentDir, "local-packages/local/index.ts"), "export default function legacyLocal() {}\n");
   writeJson(join(f.agentDir, "settings.json"), { packages: ["local-packages/local"] });
-  await f.run();
+  await assert.rejects(f.run(), /Toolkit decision required: Legacy demo differs/);
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
   assert.match(readFileSync(join(f.agentDir, "extensions/demo.ts"), "utf8"), /legacyDemo/);
   const settings = json(join(f.agentDir, "settings.json"));
   assert.deepEqual(settings.packages[1].extensions, ["-dotfiles/extensions/demo.ts", "-dotfiles/local-packages/local/index.ts"]);
@@ -197,6 +198,140 @@ test("legacy loose resources and local packages are retained without duplicate l
   const hash = toolkitPathHash(f.agentDir);
   assert.equal((await f.run()).status, "unchanged");
   assert.equal(toolkitPathHash(f.agentDir), hash);
+});
+
+test("identical legacy extension, skill, and local package move to backup and activate the bundle", async (t) => {
+  const f = fixture(t);
+  const copies = [
+    ["dotfiles/extensions/demo.ts", "extensions/demo.ts"],
+    ["dotfiles/skills/demo/SKILL.md", "skills/demo/SKILL.md"],
+    ["dotfiles/local-packages/local/index.ts", "local-packages/local/index.ts"],
+    ["dotfiles/local-packages/local/package.json", "local-packages/local/package.json"],
+  ];
+  for (const [source, target] of copies) {
+    const path = join(f.agentDir, target);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, readFileSync(join(f.root, source)));
+  }
+  writeJson(join(f.agentDir, "settings.json"), { packages: ["local-packages/local"] });
+  const receipt = await f.run();
+  assert.equal(receipt.actions.filter((entry) => entry.action === "migrate").length, 3);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  for (const [, target] of copies) assert.equal(existsSync(join(f.agentDir, target)), false);
+  const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
+  assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/extensions/demo.ts"), "utf8"), readFileSync(join(f.root, "dotfiles/extensions/demo.ts"), "utf8"));
+  assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/local-packages/local/index.ts"), "utf8"), readFileSync(join(f.root, "dotfiles/local-packages/local/index.ts"), "utf8"));
+  assert.equal((await f.run()).status, "unchanged");
+});
+
+test("legacy directory extensions move with their helper files rather than only index.ts", async (t) => {
+  const f = fixture(t);
+  const manifest = json(join(f.root, "manifest.json"));
+  manifest.resources[0].path = "dotfiles/extensions/demo/index.ts";
+  manifest.resources[0].legacy = ["extensions/demo/index.ts"];
+  f.put("manifest.json", manifest);
+  const pkg = json(join(f.root, "package.json"));
+  pkg.pi.extensions[0] = "./dotfiles/extensions/demo/index.ts";
+  f.put("package.json", pkg);
+  mkdirSync(join(f.root, "dotfiles/extensions/demo"));
+  f.put("dotfiles/extensions/demo/index.ts", "import './helper.js';\n");
+  f.put("dotfiles/extensions/demo/helper.js", "export const helper = true;\n");
+  const old = join(f.agentDir, "extensions/demo");
+  mkdirSync(old, { recursive: true });
+  writeFileSync(join(old, "index.ts"), "import './helper.js';\n");
+  writeFileSync(join(old, "helper.js"), "export const helper = true;\n");
+  await f.run();
+  assert.equal(existsSync(old), false);
+  const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
+  assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/extensions/demo/helper.js"), "utf8"), "export const helper = true;\n");
+});
+
+test("differing legacy copy is preserved until explicit migration and then archived", async (t) => {
+  const f = fixture(t);
+  const old = join(f.agentDir, "extensions/demo.ts");
+  mkdirSync(dirname(old), { recursive: true });
+  writeFileSync(old, "local custom extension\n");
+  await assert.rejects(f.run(), /Toolkit decision required/);
+  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
+  assert.equal(readFileSync(old, "utf8"), "local custom extension\n");
+  await f.run(["--skip-packages", "--replace-legacy"]);
+  assert.equal(existsSync(old), false);
+  const backup = readdirSync(join(f.agentDir, "toolkit-backups")).at(-1);
+  assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/extensions/demo.ts"), "utf8"), "local custom extension\n");
+  assert.equal(json(join(f.agentDir, "settings.json")).packages[0].source, "toolkits/pi-agent-setup");
+});
+
+test("a rerun removes a stale local-package registration after an interrupted legacy move", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const statePath = join(f.agentDir, "toolkit-state.json");
+  writeJson(statePath, { ...json(statePath), pendingLegacy: ["local-packages/local/index.ts"] });
+  writeJson(join(f.agentDir, "settings.json"), { packages: ["local-packages/local", "toolkits/pi-agent-setup"] });
+  await f.run();
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  assert.deepEqual(json(statePath).pendingLegacy, []);
+});
+
+test("interactive cleanup deletes only checked items without keeping a delete choice", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const extra = join(f.agentDir, "extensions/extra.ts");
+  mkdirSync(dirname(extra), { recursive: true });
+  writeFileSync(extra, "export default function extra() {}\n");
+  const other = join(f.agentDir, "skills/other/SKILL.md");
+  mkdirSync(dirname(other), { recursive: true });
+  writeFileSync(other, "---\nname: other\ndescription: Other\n---\nOther\n");
+  writeJson(join(f.agentDir, "settings.json"), { packages: ["toolkits/pi-agent-setup", "npm:old", "npm:leave"] });
+  const removed = [];
+  const removePackage = async (source) => {
+    removed.push(source);
+    const settings = json(join(f.agentDir, "settings.json"));
+    settings.packages = settings.packages.filter((entry) => entry !== source);
+    writeJson(join(f.agentDir, "settings.json"), settings);
+  };
+  const uiFactory = async () => ({ interactive: true, start() {}, plan() {}, finish() {},
+    async cleanup(candidates) {
+      assert.deepEqual(candidates.map((entry) => entry.id), ["package:npm:old", "package:npm:leave",
+        "resource:extensions/extra.ts", "resource:skills/other"]);
+      return candidates.filter((entry) => ["package:npm:old", "resource:extensions/extra.ts"].includes(entry.id));
+    },
+    async confirm() { return "apply"; }, async task(_title, fn) { return fn(); } });
+  await f.run(["--skip-packages"], f.install, { uiFactory, removePackage });
+  assert.deepEqual(removed, ["npm:old"]);
+  assert.equal(existsSync(extra), false);
+  assert.equal(existsSync(other), true);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup", "npm:leave"]);
+  assert.equal((await f.run(["--skip-packages"])).status, "unchanged");
+  assert.equal(existsSync(other), true);
+});
+
+test("deleting a configured local extension package removes its registration too", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const path = join(f.agentDir, "extensions/custom");
+  mkdirSync(path, { recursive: true });
+  writeFileSync(join(path, "index.ts"), "export default function custom() {}\n");
+  writeJson(join(f.agentDir, "settings.json"), { packages: ["toolkits/pi-agent-setup", "extensions/custom"] });
+  const uiFactory = async () => ({ interactive: true, start() {}, plan() {}, finish() {},
+    async cleanup(candidates) { return candidates.filter((entry) => entry.id === "package:extensions/custom"); },
+    async confirm() { return "apply"; }, async task(_title, fn) { return fn(); } });
+  const removePackage = async (source) => {
+    assert.equal(source, "extensions/custom");
+    writeJson(join(f.agentDir, "settings.json"), { packages: ["toolkits/pi-agent-setup"] });
+  };
+  await f.run(["--skip-packages"], f.install, { uiFactory, removePackage });
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+});
+
+test("noninteractive setup never deletes unrelated resources", async (t) => {
+  const f = fixture(t);
+  const extra = join(f.agentDir, "extensions/extra.ts");
+  mkdirSync(dirname(extra), { recursive: true });
+  writeFileSync(extra, "export default function extra() {}\n");
+  await f.run(["--skip-packages", "--yes"]);
+  assert.equal(existsSync(extra), true);
 });
 
 test("pre-existing duplicate load paths fail verification instead of being reported as ready", async (t) => {
@@ -383,7 +518,7 @@ test("legacy resource exclusions are removed when the old copy goes away, withou
   writeFileSync(legacy, "export default function legacy() {}\n");
   const userFilter = "-dotfiles/local-packages/local/index.ts";
   writeJson(join(f.agentDir, "settings.json"), { packages: [{ source: "toolkits/pi-agent-setup", extensions: [userFilter] }] });
-  await f.run();
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
   rmSync(legacy);
   await f.run();
   assert.deepEqual(json(join(f.agentDir, "settings.json")).packages[0].extensions, [userFilter]);
@@ -450,6 +585,37 @@ test("source changes during confirmation invalidate the plan before deployment",
   await assert.rejects(f.run(["--skip-packages"], f.install, { uiFactory }), /Toolkit inputs changed/);
   assert.equal(existsSync(join(f.agentDir, "settings.json")), false);
   assert.equal(existsSync(join(f.agentDir, "toolkit-setup.lock")), false);
+});
+
+test("changes to a legacy directory helper during confirmation cancel automatic migration", async (t) => {
+  const f = fixture(t);
+  const old = join(f.agentDir, "skills/demo");
+  mkdirSync(old, { recursive: true });
+  writeFileSync(join(old, "SKILL.md"), readFileSync(join(f.root, "dotfiles/skills/demo/SKILL.md")));
+  f.put("dotfiles/skills/demo/asset.txt", "original\n");
+  writeFileSync(join(old, "asset.txt"), "original\n");
+  const uiFactory = async () => ({ interactive: true, start() {}, plan() {},
+    async confirm() { writeFileSync(join(old, "asset.txt"), "changed during menu\n"); return "apply"; } });
+  await assert.rejects(f.run(["--skip-packages"], f.install, { uiFactory }), /Toolkit inputs changed/);
+  assert.equal(readFileSync(join(old, "asset.txt"), "utf8"), "changed during menu\n");
+  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+});
+
+test("interrupted migration keeps ownership of old exclusions until settings update", async (t) => {
+  const f = fixture(t);
+  const old = join(f.agentDir, "extensions/demo.ts");
+  mkdirSync(dirname(old), { recursive: true });
+  writeFileSync(old, "local version\n");
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
+  const statePath = join(f.agentDir, "toolkit-state.json");
+  const settingsPath = join(f.agentDir, "settings.json");
+  const before = json(statePath);
+  assert.deepEqual(before.resourceExclusions.extensions, ["-dotfiles/extensions/demo.ts"]);
+  rmSync(old);
+  writeJson(statePath, { ...before, pendingLegacy: ["extensions/demo.ts"] });
+  await f.run();
+  const toolkit = json(settingsPath).packages.find((entry) => (entry.source ?? entry) === "toolkits/pi-agent-setup");
+  assert.equal(typeof toolkit === "string" || !toolkit.extensions?.includes("-dotfiles/extensions/demo.ts"), true);
 });
 
 test("another setup lock is preserved and prevents changes", async (t) => {

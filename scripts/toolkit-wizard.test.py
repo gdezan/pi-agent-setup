@@ -140,6 +140,26 @@ class WizardTests(unittest.TestCase):
         self.assertIn(b"MACHINE NOTES", terminal.raw)
         self.assertFalse((self.target / "toolkit-setup.lock").exists())
 
+    def test_delete_checklist_is_unchecked_and_removes_only_an_explicit_choice(self):
+        extra = self.target / "extensions" / "extra.ts"
+        extra.parent.mkdir(parents=True)
+        extra.write_text("export default function extra() {}\n")
+        first = self.terminal("--skip-packages")
+        first.wait_for("Delete which unselected packages or unmanaged resources?")
+        first.send(b"\r")
+        first.wait_for("Apply these changes?")
+        first.send(b"\r")
+        self.assertEqual(first.finish(), 0)
+        self.assertTrue(extra.exists())
+
+        second = self.terminal("--skip-packages")
+        second.wait_for("Delete which unselected packages or unmanaged resources?")
+        second.send(b" \r")
+        second.wait_for("Apply these changes?")
+        second.send(b"\r")
+        self.assertEqual(second.finish(), 0)
+        self.assertFalse(extra.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

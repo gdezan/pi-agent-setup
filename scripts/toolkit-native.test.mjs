@@ -9,7 +9,7 @@ import test from "node:test";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 for (const legacy of [false, true]) {
-  test(`native Pi loads exactly seven extensions and two skills with ${legacy ? "retained legacy" : "fresh copied"} resources`, (t) => {
+  test(`native Pi loads toolkit extensions and skills with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
     const base = mkdtempSync(join(tmpdir(), "pi-wizard-native-"));
     t.after(() => rmSync(base, { recursive: true, force: true }));
     const agentDir = join(base, "agent");
@@ -35,10 +35,16 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.length, 7);
-      assert.equal(loader.getSkills().skills.length, 2);
+      for (const name of ['impeccable', 'analyze-sessions']) {
+        assert.equal(loader.getSkills().skills.filter((skill) => skill.name === name).length, 1);
+      }
     `], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    if (legacy) assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel, "keep-local-model");
+    if (legacy) {
+      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel, "keep-local-model");
+      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
+        String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/")), false);
+    }
     const rerun = spawnSync(process.execPath, [join(root, "setup.mjs"), "--skip-packages", "--json"], { env, encoding: "utf8" });
     assert.equal(rerun.status, 0, rerun.stdout + rerun.stderr);
     assert.equal(JSON.parse(rerun.stdout).status, "unchanged");

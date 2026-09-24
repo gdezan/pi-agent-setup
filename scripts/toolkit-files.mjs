@@ -164,6 +164,19 @@ export function deployToolkitPackage({ root, target, files, link, backupRoot }) 
   return true;
 }
 
+/** Archive a manifest-listed legacy resource without following a link or deleting its contents. */
+export function archiveToolkitLegacyPath({ agentDir, target, backupRoot, legacy }) {
+  if (!isInside(agentDir, target) || !toolkitPathStat(target)) throw new Error(`Invalid toolkit legacy path: ${target}`);
+  let parent = dirname(target);
+  while (parent !== agentDir) {
+    if (toolkitPathStat(parent)?.isSymbolicLink()) throw new Error(`Refusing toolkit legacy move through symlink: ${parent}`);
+    parent = dirname(parent);
+  }
+  const backup = join(backupRoot, "legacy", toolkitPathStat(target).isDirectory() ? dirname(legacy) : legacy);
+  mkdirSync(dirname(backup), { recursive: true, mode: 0o700 });
+  renameSync(target, backup);
+}
+
 /** Fingerprint deployed files and links without traversing symlinks; missing paths have a null fingerprint. */
 export function toolkitPathHash(path) {
   const stat = toolkitPathStat(path);

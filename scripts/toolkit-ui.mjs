@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { createTwoFilesPatch } from "diff";
 import { toolkitPathStat } from "./toolkit-files.mjs";
@@ -29,6 +29,14 @@ export async function createToolkitUI({ input, output, options, signal }) {
         options: inventory.packages.map((entry) => ({ value: entry.id, label: clean(entry.id),
           hint: clean(`${entry.present ? "installed" : entry.registered ? "needs repair" : "not installed"} — ${entry.description}`) })) }));
     },
+    async cleanup(candidates) {
+      if (!candidates.length) return [];
+      clack.note("Optional permanent deletion. Nothing is selected by default; no backup is made.", "Clean up local Pi items", common);
+      const selected = answer(await clack.multiselect({ ...common, message: "Delete which unselected packages or unmanaged resources?",
+        required: false, initialValues: [], options: candidates.map((entry) => ({ value: entry.id,
+          label: clean(entry.label), hint: entry.kind === "package" ? "Remove package and its registration" : "Delete local resource" })) }));
+      return candidates.filter((entry) => selected.includes(entry.id));
+    },
     async conflict(entry, files, root) {
       while (true) {
         clack.note(clean(entry.conflictMessage), clean(entry.target ?? entry.source), common);
@@ -36,9 +44,19 @@ export async function createToolkitUI({ input, output, options, signal }) {
           options: [{ value: "keep", label: "Keep existing", hint: "Leave it unchanged and remember this choice" },
             ...(entry.target ? [{ value: "diff", label: "View differences" }] : []),
             ...(entry.retainOnly ? [{ value: "cancel", label: "Cancel and inspect manually" }] :
-              [{ value: entry.target ? "replace" : "repair", label: entry.target ? "Back up and replace" : "Repair package" }])] }));
+              [{ value: entry.target ? "replace" : "repair", label: entry.migration ? "Move old copy to backup and activate bundled version" : entry.target ? "Back up and replace" : "Repair package" }])] }));
         if (choice === "cancel") throw new ToolkitCancelled();
         if (choice !== "diff") return choice;
+        if (entry.migration) {
+          const old = toolkitPathStat(entry.target)?.isDirectory() ? join(entry.target, basename(entry.legacy)) : entry.target;
+          const next = toolkitPathStat(entry.source)?.isDirectory() ? join(entry.source, basename(entry.legacy)) : entry.source;
+          if (!toolkitPathStat(old)?.isFile() || !toolkitPathStat(next)?.isFile()) {
+            clack.note("Entrypoint is not a regular file. Inspect the full paths before deciding.", "Differences", common);
+          } else {
+            clack.note(clean(createTwoFilesPatch(old, next, readFileSync(old, "utf8"), readFileSync(next, "utf8")).slice(0, 16000)), "Entrypoint differences (directory may contain other changes)", common);
+          }
+          continue;
+        }
         if (entry.id === "instructions") {
           const stat = toolkitPathStat(entry.target);
           if (!stat?.isFile()) { clack.note("Existing path is a link. Replacement backs up the link, not its target.", "Differences", common); continue; }
@@ -60,7 +78,7 @@ export async function createToolkitUI({ input, output, options, signal }) {
     },
     plan(plan, settingsChanged) {
       const rows = summarizeToolkitPlan(plan).actions.map((entry) => `${entry.action.padEnd(10)} ${entry.id}`);
-      for (const entry of plan.inventory.resources.filter((entry) => entry.existing.length)) rows.push(`retain     ${entry.id} (${entry.existing.map((item) => item.path).join(", ")})`);
+      for (const entry of summarizeToolkitPlan(plan).retained.filter((entry) => entry.paths.length)) rows.push(`retain     ${entry.id} (${entry.paths.join(", ")})`);
       rows.push(`${settingsChanged ? "merge" : "keep"}       local settings`, `Mode: ${plan.mode}`);
       if (clack) clack.note(clean(rows.join("\n")), "Planned changes", common);
       else line(`\nPlanned changes\n${rows.join("\n")}`);

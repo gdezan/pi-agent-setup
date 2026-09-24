@@ -15,9 +15,11 @@ cd pi-agent-setup
 node setup.mjs
 ```
 
-The first run installs the wizard's pinned dependencies. Setup shows one package checklist and a change preview before writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close Pi first. Start `pi` afterward and use `/login` to authenticate.
+The first run installs the wizard's pinned dependencies. Setup shows a package checklist, an optional unchecked delete checklist when there are cleanup candidates, and a change preview before writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close Pi first. Start `pi` afterward and use `/login` to authenticate.
 
-Run setup as often as needed. It keeps installed packages, remembers your choices, and makes no changes on an unchanged rerun. Recognized legacy extensions stay in place; their bundled duplicates are disabled.
+Run setup as often as needed. It keeps installed third-party packages, remembers your choices, and makes no changes on an unchanged rerun. Recognized legacy resources matching the bundle move into a backup so the bundled versions become active. If a legacy copy differs, setup asks before migrating it. Unrelated resources stay in place.
+
+The interactive wizard also offers an optional **permanent delete** checklist for unselected packages and unrelated local extensions, skills, and local packages. Nothing is checked by default, and the checklist is not available in noninteractive runs. Unlike legacy migration, checked deletions have no setup-managed backup.
 
 > [!IMPORTANT]
 > If your existing `~/.pi` is a checkout of this repository, **do not pull this layout into it**. Clone into a separate folder. Setup can use that existing installation without moving its extensions.
@@ -30,7 +32,7 @@ Run setup as often as needed. It keeps installed packages, remembers your choice
 | [`preferences.json`](preferences.json) | Shared display and compaction defaults |
 | [`dotfiles/`](dotfiles/) | Custom extensions, skills, and system instructions |
 
-Setup fills missing preferences without replacing existing values. Package selections are saved per machine; existing package pins and filters are preserved. Use `pi config` to disable individual extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not remove it.
+Setup fills missing preferences without replacing existing values. Package selections are saved per machine; existing package pins and filters are preserved. Use `pi config` to disable individual extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not remove it unless you explicitly check it in the delete step.
 
 For live editing, run `node setup.mjs --link`. This links custom resources to the checkout instead of copying them. Keep the checkout in place and reload Pi after edits.
 
@@ -49,6 +51,7 @@ Copy/link mode is remembered. Optional flags:
 
 - `--update-packages`: update selected third-party packages, respecting their pins.
 - `--repair`: reinstall selected packages that are missing or broken.
+- `--replace-legacy`: migrate differing manifest-listed legacy resources without prompting, after backing them up.
 - `--apply-preferences`: overwrite the shared preference keys.
 - `--skip-packages`: work only on custom resources and preferences.
 

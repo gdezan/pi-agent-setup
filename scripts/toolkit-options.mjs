@@ -6,7 +6,7 @@ export const TOOLKIT_HELP = `Pi setup
 Usage: node setup.mjs [options]
 
 Inspect an existing setup, choose packages, and review changes before applying.
-Working packages, local extensions, model choices, and version pins are kept.
+Working third-party packages, model choices, and version pins are kept.
 
   --agent-dir PATH       Destination (PI_CODING_AGENT_DIR or ~/.pi/agent)
   --link                 Link custom resources to this checkout
@@ -19,6 +19,7 @@ Working packages, local extensions, model choices, and version pins are kept.
   --repair              Repair selected missing or incomplete packages
   --conflicts keep      Preserve conflicting files/packages without prompting
   --replace-resources   Back up and replace locally changed custom resources
+  --replace-legacy      Back up differing manifest-listed legacy resources and activate bundled copies
   --replace-config      Back up and replace differing system instructions
   --apply-preferences   Apply shared preferences over existing values
   --dry-run             Show the plan without writes, downloads, or installs
@@ -29,7 +30,10 @@ Working packages, local extensions, model choices, and version pins are kept.
   --list-packages       List package IDs and sources
   -h, --help            Show this help
 
-Close Pi before applying changes. Nothing is automatically uninstalled or moved.
+Close Pi before applying changes. Recognized, identical legacy resources are moved to backups;
+differing ones require a decision. Unrelated local resources are never moved.
+The interactive cleanup checklist can permanently delete individually checked unselected packages
+and unmanaged local resources; it is unchecked by default and unavailable noninteractively.
 Kept conflict decisions are remembered until the source or destination changes.
 Inspection and verification cover this global agent directory, not project overrides.
 `;
@@ -41,7 +45,7 @@ export function parseToolkitOptions(argv) {
     packages: { type: "string" }, "all-packages": { type: "boolean" }, "skip-packages": { type: "boolean" },
     "reuse-selection": { type: "boolean" }, "update-packages": { type: "boolean" }, repair: { type: "boolean" },
     conflicts: { type: "string" }, "replace-resources": { type: "boolean" }, "replace-config": { type: "boolean" },
-    "apply-preferences": { type: "boolean" }, "dry-run": { type: "boolean" }, "non-interactive": { type: "boolean" },
+    "replace-legacy": { type: "boolean" }, "apply-preferences": { type: "boolean" }, "dry-run": { type: "boolean" }, "non-interactive": { type: "boolean" },
     yes: { type: "boolean" }, json: { type: "boolean" }, "no-color": { type: "boolean" },
     "list-packages": { type: "boolean" }, help: { type: "boolean", short: "h" },
   } });

@@ -3,13 +3,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { collectToolkitFiles, resolveToolkitAgentDir, assertToolkitWritePaths, toolkitContentHash, toolkitCopyMatches,
-  toolkitLinkMatches, toolkitPathHash, deployToolkitPackage, replaceToolkitPath, writeToolkitJson } from "./toolkit-files.mjs";
+  toolkitLinkMatches, toolkitPathHash, deployToolkitPackage, archiveToolkitLegacyPath, replaceToolkitPath, writeToolkitJson } from "./toolkit-files.mjs";
 import { readToolkitJson, validateToolkitManifest } from "./toolkit-settings.mjs";
 import { TOOLKIT_PACKAGE_SOURCE, inspectToolkitInventory, validateToolkitResources, verifyToolkitInventory } from "./toolkit-inventory.mjs";
 import { readToolkitState, planToolkitSetup, reconcileToolkitExclusions, snapshotToolkitPlan, summarizeToolkitPlan } from "./toolkit-plan.mjs";
 import { parseToolkitOptions, TOOLKIT_HELP } from "./toolkit-options.mjs";
 import { createToolkitUI } from "./toolkit-ui.mjs";
 import { runToolkitCommand, ToolkitCancelled } from "./toolkit-command.mjs";
+import { assertToolkitCleanupPath, listToolkitCleanupCandidates } from "./toolkit-cleanup.mjs";
 
 /** Run one Pi package operation asynchronously; no shell, interactive child input, or mixed wizard output. */
 export async function runToolkitPackageCommand(source, agentDir, { action, signal }) {
@@ -24,6 +25,14 @@ export async function runToolkitPackageCommand(source, agentDir, { action, signa
     if (error instanceof ToolkitCancelled) throw error;
     throw new Error(`Pi package operation failed: ${source}: ${error.message}\nRerun setup with --reuse-selection to retry.`);
   }
+}
+
+/** Remove only a package explicitly checked in the wizard, using Pi's package manager. */
+export async function runToolkitRemoveCommand(source, agentDir, { signal }) {
+  await runToolkitCommand({ command: "pi", args: ["remove", source, "--no-approve"], cwd: agentDir, signal, env: {
+    ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"),
+    PI_SKIP_VERSION_CHECK: "1", PI_TELEMETRY: "0", GIT_TERMINAL_PROMPT: "0",
+  } });
 }
 
 function selectionIds(options, state, manifest) {
@@ -58,7 +67,8 @@ function stateAfterDeployment(plan, files) {
 
 /** Inspect, plan, apply, and verify a global setup; dependencies keep tests off the live installation. */
 export async function runToolkitSetup({ root, argv, input = process.stdin, output = process.stdout,
-  installPackage = runToolkitPackageCommand, uiFactory = createToolkitUI, signal: suppliedSignal }) {
+  installPackage = runToolkitPackageCommand, removePackage = runToolkitRemoveCommand,
+  uiFactory = createToolkitUI, signal: suppliedSignal }) {
   const options = parseToolkitOptions(argv);
   if (options.help) { output.write(options.json ? `${JSON.stringify({ help: TOOLKIT_HELP })}\n` : TOOLKIT_HELP); return; }
   const manifest = validateToolkitManifest(readToolkitJson(join(root, "manifest.json")));
@@ -92,8 +102,10 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     const inspection = { root, agentDir, settings, manifest };
     const inventory = await inspectToolkitInventory(inspection);
     checkAbort();
-    const snapshot = snapshotToolkitPlan({ root, agentDir, packageJson, inventory });
+    const snapshotCleanup = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: [] });
+    const snapshot = snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cleanup: snapshotCleanup });
     let ids = selectionIds(options, state, manifest);
+    let cleanup = [];
     let plan;
     const canChoose = ids === undefined && ui.interactive;
     if (ids === undefined && !ui.interactive) {
@@ -104,15 +116,20 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     while (true) {
       if (canChoose) ids = await ui.packages(inventory, ids ?? initial);
       checkSelection(ids, manifest);
+      const cleanupCandidates = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: ids });
+      // Deletions are never inherited from saved choices or accepted by noninteractive flags.
+      cleanup = ui.interactive ? await ui.cleanup?.(cleanupCandidates) ?? [] : [];
       const build = () => planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds: ids, options });
       plan = build();
+      plan.cleanup = cleanup;
       if (!options["dry-run"]) {
         for (const conflict of plan.conflicts) {
-          if (!ui.interactive) throw new Error(`Toolkit decision required: ${conflict.conflictMessage} Use --conflicts keep, --repair, --replace-config, or --replace-resources as appropriate.`);
+          if (!ui.interactive) throw new Error(`Toolkit decision required: ${conflict.conflictMessage} Use --conflicts keep, --replace-legacy, --repair, --replace-config, or --replace-resources as appropriate.`);
           options.decisions ??= {};
           options.decisions[conflict.conflictKey] = await ui.conflict(conflict, files, root);
         }
         plan = build();
+        plan.cleanup = cleanup;
       }
       const settingsChanged = JSON.stringify(plan.settings) !== JSON.stringify(settings);
       ui.plan(plan, settingsChanged);
@@ -122,7 +139,7 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
       }
       // Calculate baseline metadata without rewriting files; this also upgrades safe v1 records once.
       plan.state = stateAfterDeployment(plan, files);
-      const changes = [plan.resources, plan.instructions, ...plan.packages].some((entry) => entry.action !== "keep") || settingsChanged ||
+      const changes = [plan.resources, plan.instructions, ...plan.packages, ...plan.migrations].some((entry) => entry.action !== "keep") || cleanup.length > 0 || settingsChanged ||
         JSON.stringify(plan.state) !== JSON.stringify(state);
       if (!changes) {
         await verifyToolkitInventory({ ...inspection, requireBundledResources: plan.resources.register && !plan.resources.keptConflict }, inventory);
@@ -160,9 +177,10 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
       writeFileSync(lockPath, `${process.pid}\n`, { flag: "wx", mode: 0o600 });
       locked = true;
     }
-    if (snapshotToolkitPlan({ root, agentDir, packageJson, inventory }) !== snapshot) {
+    if (snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cleanup: snapshotCleanup }) !== snapshot) {
       throw new Error("Toolkit inputs changed during setup: no planned changes applied. Close Pi and rerun setup.");
     }
+    for (const entry of cleanup) if (entry.path) assertToolkitCleanupPath(agentDir, entry.path);
     const backupRoot = join(agentDir, "toolkit-backups", `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`);
     applied = true;
     if (plan.resources.action !== "keep") deployToolkitPackage({ root, target: plan.resources.target, files, link: plan.mode === "link", backupRoot });
@@ -170,6 +188,14 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
       if (plan.mode === "link") symlinkSync(plan.instructions.source, staging, "file");
       else writeFileSync(staging, plan.instructions.content, { mode: 0o600 });
     } });
+    const pendingLegacy = plan.migrations.filter((entry) => entry.action === "migrate").map((entry) => entry.legacy);
+    // Keep exclusion ownership from the settings still on disk until those settings are replaced.
+    if (pendingLegacy.length) writeToolkitJson({ path: statePath, value: {
+      ...plan.state, resourceExclusions: state.resourceExclusions ?? {}, pendingLegacy,
+    }, backupRoot, backupName: "toolkit-state.json" });
+    for (const entry of plan.migrations.filter((entry) => entry.action === "migrate")) {
+      archiveToolkitLegacyPath({ agentDir, target: entry.target, backupRoot, legacy: entry.legacy });
+    }
     plan.state = stateAfterDeployment(plan, files);
     const operations = plan.packages.filter((entry) => ["install", "repair", "update"].includes(entry.action));
     plan.state.pendingPackages = [...new Set([...plan.state.pendingPackages, ...operations.map((entry) => entry.id)])];
@@ -187,6 +213,16 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
       }
       plan.state.pendingPackages = plan.state.pendingPackages.filter((id) => id !== entry.id);
       saveState();
+    }
+    for (const entry of cleanup) {
+      checkAbort();
+      if (entry.path) assertToolkitCleanupPath(agentDir, entry.path);
+      if (entry.kind === "package") {
+        await ui.task(`Deleting ${entry.label}`, () => removePackage(entry.source, agentDir, { signal }), `Deleted ${entry.label}`);
+      }
+      if (entry.path) {
+        rmSync(entry.path, { recursive: true, force: true });
+      }
     }
     checkAbort();
     // Newly installed packages can contain a catalogued resource. Exclude its bundled counterpart before verifying.

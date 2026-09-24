@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { collectToolkitFiles, toolkitContentHash, toolkitCopyMatches, toolkitLinkMatches, toolkitPathHash, toolkitPathStat } from "./toolkit-files.mjs";
-import { findToolkitPackage, mergeToolkitPreferences, readToolkitJson, registerToolkitPackage, toolkitPackageSource } from "./toolkit-settings.mjs";
+import { findToolkitPackage, mergeToolkitPreferences, readToolkitJson, registerToolkitPackage, toolkitPackageIdentity, toolkitPackageSource } from "./toolkit-settings.mjs";
 import { TOOLKIT_PACKAGE_SOURCE } from "./toolkit-inventory.mjs";
 
 /** Read old ownership records conservatively; v1 has no package baseline and cannot prove a safe overwrite. */
@@ -13,6 +13,7 @@ export function readToolkitState(path) {
       (state.appendSystemHash != null && typeof state.appendSystemHash !== "string") ||
       (state.packageHash != null && typeof state.packageHash !== "string") ||
       (state.mode !== undefined && !["copy", "link"].includes(state.mode)) ||
+      (state.pendingLegacy !== undefined && (!Array.isArray(state.pendingLegacy) || state.pendingLegacy.some((path) => typeof path !== "string"))) ||
       (state.pendingPackages !== undefined && (!Array.isArray(state.pendingPackages) || state.pendingPackages.some((id) => typeof id !== "string")))) {
     throw new Error(`Invalid toolkit state: ${path}`);
   }
@@ -84,6 +85,42 @@ function planInstructions({ root, agentDir, state, mode, replaceConfig }) {
     message: "System instructions", conflictMessage: "Existing system instructions differ from the shared version." };
 }
 
+function legacyResourceRoot(agentDir, resource, legacy) {
+  const entry = join(agentDir, legacy);
+  return resource.packageName || resource.kind === "skills" || ["index.ts", "index.js"].includes(basename(entry))
+    ? dirname(entry) : entry;
+}
+
+/** Plan migration only for manifest-named legacy paths, never arbitrary matching files or relocated resources. */
+function planLegacyMigrations({ root, agentDir, manifest, inventory, options, keptConflicts, bundleRegistered }) {
+  if (!bundleRegistered) return [];
+  const migrations = [];
+  for (const resource of manifest.resources) for (const legacy of resource.legacy) {
+    const entry = join(agentDir, legacy);
+    const target = legacyResourceRoot(agentDir, resource, legacy);
+    const stat = toolkitPathStat(target);
+    if (!stat) continue;
+    // An unrelated file at a catalogued path, or a disabled resource, is not ours to migrate.
+    const existing = inventory.resources.find((item) => item.id === resource.id)?.existing ?? [];
+    if (existing.filter((item) => item.enabled).length > 1) continue;
+    const known = existing.find((item) =>
+      resolve(item.path) === resolve(entry) && item.enabled);
+    if (!known) continue;
+    const source = join(root, resource.path);
+    const desired = legacyResourceRoot(root, resource, resource.path);
+    const same = toolkitPathHash(target) === toolkitPathHash(desired);
+    const conflictKey = `legacy:${resource.id}:${legacy}`;
+    const signature = toolkitContentHash(JSON.stringify([toolkitPathHash(target), toolkitPathHash(desired)]));
+    const decision = options["replace-legacy"] ? "replace" : options.decisions?.[conflictKey] ?? options.conflicts ??
+      (keptConflicts[conflictKey] === signature ? "keep" : undefined);
+    migrations.push({ id: resource.id, kind: resource.kind, target, source: desired, legacy,
+      action: same || decision === "replace" ? "migrate" : decision === "keep" ? "keep" : "conflict",
+      conflictKey, signature, retainOnly: false, migration: true,
+      conflictMessage: `Legacy ${resource.id} differs from the bundled version. Back it up and use the bundled version?` });
+  }
+  return migrations;
+}
+
 /** Build a no-write installation plan; unresolved conflicts must be decided before apply. */
 export function planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds, options }) {
   const mode = options.link ? "link" : options.copy ? "copy" : state.mode ?? (toolkitLinkMatches(join(agentDir, TOOLKIT_PACKAGE_SOURCE), root) ? "link" : "copy");
@@ -126,26 +163,47 @@ export function planToolkitSetup({ root, agentDir, settings, state, manifest, pr
       else nextSettings = registerToolkitPackage(nextSettings, entry.source, agentDir);
     }
   }
-  const reconciled = reconcileToolkitExclusions(nextSettings, agentDir, inventory.resources, state.resourceExclusions);
+  const migrations = planLegacyMigrations({ root, agentDir, manifest, inventory, options, keptConflicts, bundleRegistered: resources.register });
+  for (const entry of migrations) {
+    if (entry.action === "keep") keptConflicts[entry.conflictKey] = entry.signature;
+    else delete keptConflicts[entry.conflictKey];
+  }
+  const moving = migrations.filter((entry) => entry.action === "migrate");
+  const completed = (state.pendingLegacy ?? []).flatMap((legacy) => manifest.resources.flatMap((resource) => {
+    const target = legacyResourceRoot(agentDir, resource, legacy);
+    return resource.legacy.includes(legacy) && !toolkitPathStat(target) ? [target] : [];
+  }));
+  if (moving.length || completed.length) {
+    const removedSources = new Set([...moving.map((entry) => entry.target), ...completed]
+      .map((source) => toolkitPackageIdentity(source, agentDir)));
+    nextSettings.packages = (nextSettings.packages ?? []).filter((entry) =>
+      !removedSources.has(toolkitPackageIdentity(toolkitPackageSource(entry), agentDir)));
+  }
+  const activeResources = inventory.resources.map((resource) => ({ ...resource,
+    existing: resource.existing.filter((entry) => !moving.some((migration) => migration.id === resource.id &&
+      (entry.path === migration.target || entry.path.startsWith(`${migration.target}/`)))) }));
+  const reconciled = reconcileToolkitExclusions(nextSettings, agentDir, activeResources, state.resourceExclusions);
   nextSettings = reconciled.settings;
   const nextState = { version: 2, ownsPackage: resources.owned, mode,
     packageHash: state.packageHash ?? null, appendSystemHash: instructions.owned ? state.appendSystemHash ?? null : null,
     selectedPackages: options["skip-packages"] ? state.selectedPackages ?? [] : selectedIds,
-    pendingPackages: state.pendingPackages ?? [], resourceExclusions: reconciled.exclusions, keptConflicts };
-  const warnings = inventory.resources.filter((entry) => entry.existing.filter((path) => path.enabled).length > 1)
+    pendingPackages: state.pendingPackages ?? [], pendingLegacy: [], resourceExclusions: reconciled.exclusions, keptConflicts };
+  const warnings = activeResources.filter((entry) => entry.existing.filter((path) => path.enabled).length > 1)
     .map((entry) => `Existing duplicate registrations for ${entry.id} were left unchanged.`);
   for (const entry of inventory.packages.filter((entry) => entry.registered && !entry.present &&
     !packages.some((operation) => operation.id === entry.id && ["install", "repair", "update"].includes(operation.action)))) {
     warnings.push(`Package ${entry.id} still needs repair; use --repair with its selection.`);
   }
-  return { root, agentDir, mode, resources, instructions, packages, inventory, settings: nextSettings, state: nextState, warnings,
-    conflicts: [resources, instructions, ...packages, ...uncertainResources].filter((entry) => entry.action === "conflict") };
+  return { root, agentDir, mode, resources, instructions, packages, migrations, inventory, settings: nextSettings, state: nextState, warnings,
+    conflicts: [resources, instructions, ...packages, ...migrations, ...uncertainResources].filter((entry) => entry.action === "conflict") };
 }
 
 /** Record only planned data paths; source hashes use the allowlist, never credentials or Git metadata. */
-export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory }) {
+export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cleanup = [] }) {
   const source = [...collectToolkitFiles(root, packageJson)].map(([path, file]) => [path, toolkitContentHash(file.content), file.mode]);
   const paths = ["settings.json", "toolkit-state.json", "APPEND_SYSTEM.md", TOOLKIT_PACKAGE_SOURCE].map((path) => join(agentDir, path));
+  for (const resource of inventory.resources) for (const legacy of resource.legacy) paths.push(legacyResourceRoot(agentDir, resource, legacy));
+  for (const entry of cleanup) if (entry.path) paths.push(entry.path);
   for (const resource of inventory.resources) for (const entry of resource.existing) paths.push(entry.path);
   return JSON.stringify({ source, preferences: toolkitPathHash(join(root, "preferences.json")), manifest: toolkitPathHash(join(root, "manifest.json")),
     instructions: toolkitPathHash(join(root, "dotfiles/APPEND_SYSTEM.md")), paths: [...new Set(paths)].map((path) => [path, toolkitPathHash(path)]) });
@@ -154,8 +212,11 @@ export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory }) 
 /** Produce a bounded receipt with actions and paths, never the contents of user settings. */
 export function summarizeToolkitPlan(plan) {
   return { directory: plan.agentDir, mode: plan.mode,
-    actions: [plan.resources, plan.instructions, ...plan.packages].map((entry) => ({ id: entry.id, action: entry.action, path: entry.target ?? entry.installedPath, source: entry.source })),
-    retained: plan.inventory.resources.filter((entry) => entry.existing.length).map((entry) => ({ id: entry.id, paths: entry.existing.map((path) => path.path) })),
+    actions: [plan.resources, plan.instructions, ...plan.packages, ...plan.migrations, ...(plan.cleanup ?? []).map((entry) => ({ ...entry, action: "delete", target: entry.path }))]
+      .map((entry) => ({ id: entry.id, action: entry.action, path: entry.target ?? entry.installedPath, source: entry.source })),
+    retained: plan.inventory.resources.filter((entry) => entry.existing.length).map((entry) => ({ id: entry.id,
+      paths: entry.existing.filter((path) => !plan.migrations.some((migration) => migration.action === "migrate" &&
+        migration.id === entry.id && (path.path === migration.target || path.path.startsWith(`${migration.target}/`)))).map((path) => path.path) })),
     conflicts: plan.conflicts.map((entry) => ({ id: entry.id, message: entry.conflictMessage })),
     warnings: [...plan.warnings, ...(plan.state.pendingPackages.length ? [`Incomplete package operations: ${plan.state.pendingPackages.join(", ")}. Rerun with --reuse-selection.`] : [])] };
 }
