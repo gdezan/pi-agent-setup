@@ -34,11 +34,13 @@ const REPORTED_PROBLEM_MS = 24 * 60 * 60 * 1000;
  *
  * The `Section.render` contract promises a single line, but nothing enforced it.
  * A stray newline became a second footer row, which shifts every row above it and
- * desyncs the editor's border. C0 controls are dropped too, except ESC (0x1b),
- * which introduces the ANSI styling the sections rely on.
+ * desyncs the editor's border. Other C0 controls are dropped, and DEL with them,
+ * but ESC (0x1b) must survive: it introduces the ANSI styling every section relies
+ * on, and visibleWidth() would otherwise count the parameter bytes after it as
+ * visible text, making the layout truncate while the line still looks short.
  */
 function toSingleLine(text: string): string {
-	return text.replace(/[\r\n\t\v\f\x00-\x08\x0e-\x1f\x7f]/g, " ");
+	return text.replace(/[\r\n\t\v\f\x00-\x08\x0e-\x1a\x1c-\x1f\x7f]/g, " ");
 }
 
 function createEventBus(): EventBus {

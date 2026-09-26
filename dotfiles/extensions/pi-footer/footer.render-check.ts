@@ -11,6 +11,7 @@
  */
 
 import assert from "node:assert/strict";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { Footer } from "./footer.ts";
 import type { Section } from "./types.ts";
 
@@ -26,7 +27,22 @@ function capture(stream: NodeJS.WriteStream): void {
 capture(process.stdout);
 capture(process.stderr);
 
-const theme = { fg: (_color: string, text: string) => text } as never;
+// A realistic theme: real SGR sequences, because visibleWidth() has to measure
+// through them. A pass-through stub theme hides any bug in the escape handling.
+const SGR: Record<string, [number, number, number]> = {
+	dim: [102, 102, 102],
+	muted: [128, 128, 128],
+	accent: [138, 190, 183],
+	warning: [255, 165, 0],
+	success: [126, 200, 126],
+	error: [255, 90, 90],
+	selectedBg: [60, 60, 60],
+};
+const theme = {
+	fg: (color: string, text: string) => `\x1b[38;2;${(SGR[color] ?? SGR.muted).join(";")}m${text}\x1b[39m`,
+	bg: (color: string, text: string) => `\x1b[48;2;${(SGR[color] ?? SGR.muted).join(";")}m${text}\x1b[49m`,
+	bold: (text: string) => `\x1b[1m${text}\x1b[22m`,
+} as never;
 const ctx = {} as never;
 const WIDTH = 80;
 const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -118,6 +134,33 @@ check("a clean render records nothing and stays on one line", () => {
 	assert.equal(lines.length, 1);
 	assert.ok(stripAnsi(lines[0]).startsWith("left"), lines[0]);
 	assert.equal(Footer.getDiagnostics().length, 0);
+	h.unregister();
+});
+
+check("ANSI styling survives the render and is measured as zero width", () => {
+	Footer.clearDiagnostics();
+	const styled = theme.fg("accent", "space-bunny-free");
+	const h = Footer.registerSection(section({ id: "check:ansi", render: () => styled, align: "right", order: 1 }));
+	const [line] = Footer.render(ctx, theme, 80);
+	assert.ok(line.includes("\x1b["), "escape introducer must survive toSingleLine");
+	assert.ok(stripAnsi(line).includes("space-bunny-free"), stripAnsi(line));
+	// visibleWidth must agree with the eye, or the layout truncates a line that fits.
+	assert.equal(visibleWidth(line), stripAnsi(line).length, "styled width disagrees with visible width");
+	h.unregister();
+});
+
+check("styling does not make the layout truncate a line that fits", () => {
+	Footer.clearDiagnostics();
+	const h = Footer.registerSection(section({ id: "check:fit", render: () => theme.fg("accent", "y".repeat(60)), align: "left", order: 1 }));
+	for (const width of [61, 62, 63, 80]) {
+		const [line] = Footer.render(ctx, theme, width);
+		const shown = stripAnsi(line).length;
+		assert.ok(shown <= width, "rendered " + shown + " visible chars into width " + width);
+		// A 60-char section plus one separator-free pad fits anything at or above 60.
+		if (width >= 60) {
+			assert.equal(stripAnsi(line).replace(/ +$/, "").length, 60, "truncated at width " + width + ": " + JSON.stringify(stripAnsi(line)));
+		}
+	}
 	h.unregister();
 });
 
