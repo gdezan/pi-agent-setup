@@ -81,7 +81,10 @@ export default function (pi: ExtensionAPI) {
 							: [];
 						return Footer.render(ctx, theme, width, statuses);
 					} catch (err) {
-						console.warn("[pi-footer] Render error:", err);
+						// Never console.warn from the render path: pi does not intercept
+						// console, so the write corrupts the live TUI frame. The layout
+						// engine records it and /footer-health reports it instead.
+						Footer.recordDiagnostic("Layout error", err);
 						return [theme.fg("error", "pi-footer: render error")];
 					}
 				},
@@ -113,6 +116,22 @@ export default function (pi: ExtensionAPI) {
 			showStatuses = !showStatuses;
 			Footer.invalidate();
 			ctx.ui.notify(`Footer extension statuses ${showStatuses ? "shown" : "hidden"}`, "info");
+		},
+	});
+
+	pi.registerCommand("footer-health", {
+		description: "List recent pi-footer section failures",
+		handler: async (_args, ctx) => {
+			const problems = Footer.getDiagnostics();
+			if (problems.length === 0) {
+				ctx.ui.notify("Footer: no section failures recorded", "info");
+				return;
+			}
+			ctx.ui.notify(`Footer: ${problems.length} recorded failure(s)`, "warning");
+			for (const problem of problems) {
+				const seen = problem.count > 1 ? ` (x${problem.count})` : "";
+				ctx.ui.notify(`  ${problem.summary}${seen}`, "warning");
+			}
 		},
 	});
 

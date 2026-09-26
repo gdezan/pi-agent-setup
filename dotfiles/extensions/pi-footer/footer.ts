@@ -8,6 +8,7 @@
 
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { activeProblems, clearProblems, report, type FooterProblem } from "./diagnostics.ts";
 import type { FooterSectionVariant, Section, SectionHandle } from "./types.ts";
 
 type Listener = () => void;
@@ -22,6 +23,23 @@ type FooterState = {
 
 const GLOBAL_KEY = Symbol.for("pi.footer.shared-registry");
 const globalState = globalThis as typeof globalThis & Record<symbol, FooterState | undefined>;
+
+/** A fault stays in the footer marker only while it keeps recurring. */
+const LIVE_PROBLEM_MS = 60_000;
+/** `/footer-health` reports a full day, so a fault noticed minutes later is still there. */
+const REPORTED_PROBLEM_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Collapse a section's output onto one terminal line.
+ *
+ * The `Section.render` contract promises a single line, but nothing enforced it.
+ * A stray newline became a second footer row, which shifts every row above it and
+ * desyncs the editor's border. C0 controls are dropped too, except ESC (0x1b),
+ * which introduces the ANSI styling the sections rely on.
+ */
+function toSingleLine(text: string): string {
+	return text.replace(/[\r\n\t\v\f\x00-\x08\x0e-\x1f\x7f]/g, " ");
+}
 
 function createEventBus(): EventBus {
 	const listeners = new Set<Listener>();
@@ -41,11 +59,38 @@ const state = (globalState[GLOBAL_KEY] ??= {
 	events: createEventBus(),
 });
 
+/** Record a footer fault and ask for a repaint.
+ *
+ * Section failures used to go to `console.warn`, which pi does not intercept: the
+ * write lands on fd 1 in the middle of a live alt-screen frame as unframed text, and
+ * Node prints the whole Error with its stack. That is what made a footer fault look
+ * like a multi-line system error pasted over the input box. `diagnostics.ts` keeps
+ * the full stack in a JSONL log and the summary in memory instead.
+ */
+function recordFault(key: string, summary: string, detail?: unknown): void {
+	report(key, toSingleLine(summary), detail);
+	state.events.emit();
+}
+
+/** Non-essential, right-aligned marker so a footer fault is visible but never displaces real content. */
+function createDiagnosticSection(theme: Theme): Section {
+	return {
+		id: "pi-footer:diagnostics",
+		align: "right",
+		order: Number.MAX_SAFE_INTEGER - 1,
+		render: () => {
+			const live = activeProblems(LIVE_PROBLEM_MS);
+			if (live.length === 0) return "";
+			return theme.fg("error", `footer fault ×${live.length} (/footer-health)`);
+		},
+	};
+}
+
 export const Footer = {
 	registerSection(section: Section): SectionHandle {
 		const previous = state.sections.get(section.id);
 		if (previous && previous !== section) {
-			console.warn(`[pi-footer] Section "${section.id}" already registered — overwriting`);
+			recordFault(`duplicate:${section.id}`, `Section "${section.id}" re-registered, previous instance replaced`);
 			previous.dispose?.();
 		}
 		state.sections.set(section.id, section);
@@ -81,6 +126,21 @@ export const Footer = {
 		state.events.emit();
 	},
 
+	/** Newest-first footer faults seen in the last day. Read by `/footer-health`. */
+	getDiagnostics(): FooterProblem[] {
+		return activeProblems(REPORTED_PROBLEM_MS);
+	},
+
+	/** Record a fault from outside the layout engine (for example the widget render catch). */
+	recordDiagnostic(summary: string, detail?: unknown): void {
+		recordFault(`footer:${summary}`, summary, detail);
+	},
+
+	clearDiagnostics(): void {
+		clearProblems();
+		state.events.emit();
+	},
+
 	render(
 		ctx: ExtensionContext,
 		theme: Theme,
@@ -89,7 +149,10 @@ export const Footer = {
 		featuredStatus?: string,
 	): string[] {
 		const statusValues = Array.from(statuses);
-		if (state.sections.size === 0 && statusValues.length === 0 && !featuredStatus) return [];
+		if (state.sections.size === 0 && statusValues.length === 0 && !featuredStatus && activeProblems(REPORTED_PROBLEM_MS).length === 0) {
+			return [];
+		}
+		const diagnosticSection = createDiagnosticSection(theme);
 
 		const separator = theme.fg("dim", " │ ");
 		const minimumPadding = 2;
@@ -103,9 +166,9 @@ export const Footer = {
 
 		const renderSection = (item: RenderedSection): void => {
 			try {
-				item.text = item.section.render(ctx, theme, item.variants[item.variantIndex] ?? "full");
+				item.text = toSingleLine(item.section.render(ctx, theme, item.variants[item.variantIndex] ?? "full"));
 			} catch (error) {
-				console.warn(`[pi-footer] Section "${item.section.id}" threw:`, error);
+				recordFault(`section:${item.section.id}`, `Section "${item.section.id}" threw`, error);
 				item.text = "";
 				item.hidden = true;
 			}
@@ -130,6 +193,8 @@ export const Footer = {
 			.filter((section) => section.align === "right")
 			.sort((a, b) => a.order - b.order)
 			.map(createRenderedSection);
+
+		if (activeProblems(LIVE_PROBLEM_MS).length > 0) right.push(createRenderedSection(diagnosticSection));
 
 		if (featuredStatus) {
 			left.push({
