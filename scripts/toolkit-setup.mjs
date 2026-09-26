@@ -10,7 +10,7 @@ import { readToolkitState, planToolkitSetup, reconcileToolkitExclusions, snapsho
 import { parseToolkitOptions, TOOLKIT_HELP } from "./toolkit-options.mjs";
 import { createToolkitUI } from "./toolkit-ui.mjs";
 import { runToolkitCommand, ToolkitCancelled } from "./toolkit-command.mjs";
-import { assertToolkitCleanupPath, listToolkitCleanupCandidates } from "./toolkit-cleanup.mjs";
+import { assertToolkitCleanupPath, listToolkitCleanupCandidates, readToolkitKeep, TOOLKIT_KEEP_FILE } from "./toolkit-cleanup.mjs";
 
 /** Run one Pi package operation asynchronously; no shell, interactive child input, or mixed wizard output. */
 export async function runToolkitPackageCommand(source, agentDir, { action, signal }) {
@@ -102,11 +102,13 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     const inspection = { root, agentDir, settings, manifest };
     const inventory = await inspectToolkitInventory(inspection);
     checkAbort();
-    const snapshotCleanup = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: [] });
+    const keep = readToolkitKeep(agentDir);
+    const snapshotCleanup = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: [], keep }).candidates;
     const snapshot = snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cleanup: snapshotCleanup });
     let ids = selectionIds(options, state, manifest);
     let cleanup = [];
     let plan;
+    let keptReported = false;
     const canChoose = ids === undefined && ui.interactive;
     if (ids === undefined && !ui.interactive) {
       if (!state.selectedPackages) throw new Error("Toolkit package selection requires a terminal or saved choices: use --packages, --all-packages, or --skip-packages");
@@ -116,7 +118,10 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     while (true) {
       if (canChoose) ids = await ui.packages(inventory, ids ?? initial);
       checkSelection(ids, manifest);
-      const cleanupCandidates = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: ids });
+      const { candidates: cleanupCandidates, kept } = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: ids, keep });
+      // Say what the keep list saved, so an honoured entry is visible rather than
+      // looking like the cleanup step quietly forgot it.
+      if (kept.length > 0 && !keptReported) { keptReported = true; ui.kept?.(TOOLKIT_KEEP_FILE, kept); }
       // Deletions are never inherited from saved choices or accepted by noninteractive flags.
       cleanup = ui.interactive ? await ui.cleanup?.(cleanupCandidates) ?? [] : [];
       const build = () => planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds: ids, options });

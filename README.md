@@ -34,6 +34,19 @@ The interactive wizard also offers an optional **permanent delete** checklist fo
 
 Setup fills missing preferences without replacing existing values. Package selections are saved per machine; existing package pins and filters are preserved. Use `pi config` to disable individual extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not remove it unless you explicitly check it in the delete step.
 
+Setup also offers to delete every Pi resource in `~/.pi/agent` that it does not own, which is wrong for anything you maintain by hand there. List those once in `~/.pi/agent/toolkit-keep.json` and setup stops offering them:
+
+```json
+{
+  "keep": [
+    "extensions/herdr-agent-state.ts",
+    "extensions/machine-prompt.ts"
+  ]
+}
+```
+
+Entries are paths relative to the agent directory; a directory entry keeps everything beneath it. The file is optional, so a machine with nothing to protect behaves as before. Setup reports which entries it honoured, so a keep that stops working is visible rather than silent.
+
 For live editing, run `node setup.mjs --link`. This links custom resources to the checkout instead of copying them. Keep the checkout in place and reload Pi after edits.
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.

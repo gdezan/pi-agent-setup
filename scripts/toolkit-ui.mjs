@@ -22,6 +22,11 @@ export async function createToolkitUI({ input, output, options, signal }) {
       if (clack) { clack.intro("Pi setup", common); clack.log.info(clean(`Directory: ${agentDir}`), common); }
       else line(`Pi setup\nDirectory: ${agentDir}`);
     },
+    kept(source, matched) {
+      const note = `Kept ${matched.length} local item(s) listed in ${source}: ${matched.join(", ")}`;
+      if (clack) clack.log.info(clean(note), common);
+      else line(note);
+    },
     async packages(inventory, initialValues) {
       if (!inventory.packages.length) return [];
       return answer(await clack.multiselect({ ...common, message: "Choose packages; installed packages are kept",
