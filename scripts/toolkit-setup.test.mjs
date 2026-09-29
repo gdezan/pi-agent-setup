@@ -127,6 +127,29 @@ test("explicit selection preserves installed pins and filters and is reusable", 
   assert.deepEqual(f.installed, [["npm:one@1.2.3", f.agentDir]]);
 });
 
+test("local extension selection controls bundled load paths and is reusable", async (t) => {
+  const f = fixture(t);
+  await f.run(["--skip-packages", "--extensions", "demo"]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
+    { source: "toolkits/pi-agent-setup", extensions: ["-dotfiles/local-packages/local/index.ts"] },
+  ]);
+  assert.deepEqual(json(join(f.agentDir, "toolkit-state.json")).selectedExtensions, ["demo"]);
+  await f.run(["--skip-packages"]);
+  await f.run(["--reuse-selection"]);
+  assert.deepEqual(json(join(f.agentDir, "toolkit-state.json")).selectedExtensions, ["demo"]);
+  await f.run(["--skip-packages", "--skip-extensions"]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
+    { source: "toolkits/pi-agent-setup", extensions: ["-dotfiles/extensions/demo.ts", "-dotfiles/local-packages/local/index.ts"] },
+  ]);
+});
+
+test("extension selection validates IDs and rejects conflicting selection flags", async (t) => {
+  const f = fixture(t);
+  await assert.rejects(f.run(["--skip-packages", "--extensions", "unknown"]), /Unknown toolkit extension ID/);
+  await assert.rejects(f.run(["--extensions", "demo", "--skip-extensions"]), /Conflicting toolkit extension flags/);
+  assert.equal(existsSync(f.agentDir), false);
+});
+
 test("noninteractive setup requires a concrete package selection", async (t) => {
   const f = fixture(t);
   await assert.rejects(f.run([]), /requires a terminal/);

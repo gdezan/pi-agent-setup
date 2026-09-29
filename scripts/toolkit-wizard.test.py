@@ -85,9 +85,11 @@ class WizardTests(unittest.TestCase):
         self.addCleanup(terminal.close)
         return terminal
 
-    def test_install_then_noop_with_one_checklist(self):
+    def test_install_then_noop_with_package_and_extension_checklists(self):
         terminal = self.terminal()
         terminal.wait_for("Choose packages;")
+        terminal.send(b"\r")
+        terminal.wait_for("Choose bundled extensions to enable")
         terminal.send(b"\r")
         terminal.wait_for("Apply these changes?")
         terminal.send(b"\r")
@@ -97,6 +99,8 @@ class WizardTests(unittest.TestCase):
         before = (self.target / "settings.json").stat().st_mtime_ns
         rerun = self.terminal()
         rerun.wait_for("Choose packages;")
+        rerun.send(b"\r")
+        rerun.wait_for("Choose bundled extensions to enable")
         rerun.send(b"\r")
         rerun.wait_for("Everything is already set up.")
         self.assertEqual(rerun.finish(), 0)
@@ -116,10 +120,24 @@ class WizardTests(unittest.TestCase):
         terminal = self.terminal()
         terminal.wait_for("Choose packages;")
         terminal.send(b"\r")
+        terminal.wait_for("Choose bundled extensions to enable")
+        terminal.send(b"\r")
         terminal.wait_for("Apply these changes?")
         terminal.send(b"\x1b[B\r")
         terminal.wait_for("Choose packages;")
         terminal.send(b"\x03")
+        self.assertEqual(terminal.finish(), 130)
+        self.assertFalse(self.target.exists())
+
+    def test_back_returns_to_extension_selection_without_package_selection(self):
+        terminal = self.terminal("--skip-packages")
+        terminal.wait_for("Choose bundled extensions to enable")
+        terminal.send(b"\r")
+        terminal.wait_for("Apply these changes?")
+        terminal.send(b"\x1b[B\r")
+        terminal.wait_for("Choose bundled extensions to enable")
+        terminal.send(b"\x03")
+        terminal.wait_for("No changes made.")
         self.assertEqual(terminal.finish(), 130)
         self.assertFalse(self.target.exists())
 
@@ -128,6 +146,8 @@ class WizardTests(unittest.TestCase):
         instructions = self.target / "APPEND_SYSTEM.md"
         instructions.write_text("MACHINE NOTES\n")
         terminal = self.terminal("--skip-packages")
+        terminal.wait_for("Choose bundled extensions to enable")
+        terminal.send(b"\r")
         terminal.wait_for("How should setup handle this?")
         terminal.send(b"\x1b[B\r")
         terminal.wait_for("Differences")
@@ -145,6 +165,8 @@ class WizardTests(unittest.TestCase):
         extra.parent.mkdir(parents=True)
         extra.write_text("export default function extra() {}\n")
         first = self.terminal("--skip-packages")
+        first.wait_for("Choose bundled extensions to enable")
+        first.send(b"\r")
         first.wait_for("Delete which unselected packages or unmanaged resources?")
         first.send(b"\r")
         first.wait_for("Apply these changes?")
@@ -153,6 +175,8 @@ class WizardTests(unittest.TestCase):
         self.assertTrue(extra.exists())
 
         second = self.terminal("--skip-packages")
+        second.wait_for("Choose bundled extensions to enable")
+        second.send(b"\r")
         second.wait_for("Delete which unselected packages or unmanaged resources?")
         second.send(b" \r")
         second.wait_for("Apply these changes?")

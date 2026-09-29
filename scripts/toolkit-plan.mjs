@@ -10,6 +10,7 @@ export function readToolkitState(path) {
   if (!Object.keys(state).length) return state;
   if (![1, 2].includes(state.version) || typeof state.ownsPackage !== "boolean" ||
       !Array.isArray(state.selectedPackages) || state.selectedPackages.some((id) => typeof id !== "string") ||
+      (state.selectedExtensions !== undefined && (!Array.isArray(state.selectedExtensions) || state.selectedExtensions.some((id) => typeof id !== "string"))) ||
       (state.appendSystemHash != null && typeof state.appendSystemHash !== "string") ||
       (state.packageHash != null && typeof state.packageHash !== "string") ||
       (state.mode !== undefined && !["copy", "link"].includes(state.mode)) ||
@@ -31,7 +32,14 @@ export function readToolkitState(path) {
 }
 
 /** Layer only toolkit-owned exclusions over user filters, including explicitly disabled resource types. */
-export function reconcileToolkitExclusions(settings, agentDir, resources, previous = {}) {
+function shouldExcludeToolkitResource(resource, kind, patterns, selectedExtensions) {
+  if (resource.kind !== kind) return false;
+  if (kind === "extensions" && !selectedExtensions.includes(resource.id)) return true;
+  return resource.existing.length > 0 &&
+    (resource.existing.some((entry) => entry.enabled) || !patterns?.includes(`+${resource.path}`));
+}
+
+export function reconcileToolkitExclusions(settings, agentDir, resources, selectedExtensions, previous = {}) {
   const result = structuredClone(settings);
   const entry = findToolkitPackage(result.packages ?? [], TOOLKIT_PACKAGE_SOURCE, agentDir);
   const exclusions = {};
@@ -48,8 +56,8 @@ export function reconcileToolkitExclusions(settings, agentDir, resources, previo
       patterns = patterns.filter((pattern) => !old.includes(pattern));
       if (!patterns.length) patterns = undefined;
     }
-    const required = resources.filter((resource) => resource.kind === kind && resource.existing.length &&
-      (resource.existing.some((entry) => entry.enabled) || !patterns?.includes(`+${resource.path}`))).map((resource) => `-${resource.path}`);
+    const required = resources.filter((resource) => shouldExcludeToolkitResource(resource, kind, patterns, selectedExtensions))
+      .map((resource) => `-${resource.path}`);
     const additions = required.filter((pattern) => !(patterns ?? []).includes(pattern));
     if (additions.length) exclusions[kind] = additions;
     if (patterns !== undefined || additions.length) filtered[kind] = [...(patterns ?? []), ...additions];
@@ -122,7 +130,7 @@ function planLegacyMigrations({ root, agentDir, manifest, inventory, options, ke
 }
 
 /** Build a no-write installation plan; unresolved conflicts must be decided before apply. */
-export function planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds, options }) {
+export function planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds, selectedExtensions, options }) {
   const mode = options.link ? "link" : options.copy ? "copy" : state.mode ?? (toolkitLinkMatches(join(agentDir, TOOLKIT_PACKAGE_SOURCE), root) ? "link" : "copy");
   const resources = planPackageFiles({ root, agentDir, files, state, mode, replaceResources: options["replace-resources"] });
   const instructions = planInstructions({ root, agentDir, state, mode, replaceConfig: options["replace-config"] });
@@ -182,11 +190,12 @@ export function planToolkitSetup({ root, agentDir, settings, state, manifest, pr
   const activeResources = inventory.resources.map((resource) => ({ ...resource,
     existing: resource.existing.filter((entry) => !moving.some((migration) => migration.id === resource.id &&
       (entry.path === migration.target || entry.path.startsWith(`${migration.target}/`)))) }));
-  const reconciled = reconcileToolkitExclusions(nextSettings, agentDir, activeResources, state.resourceExclusions);
+  const reconciled = reconcileToolkitExclusions(nextSettings, agentDir, activeResources, selectedExtensions, state.resourceExclusions);
   nextSettings = reconciled.settings;
   const nextState = { version: 2, ownsPackage: resources.owned, mode,
     packageHash: state.packageHash ?? null, appendSystemHash: instructions.owned ? state.appendSystemHash ?? null : null,
     selectedPackages: options["skip-packages"] ? state.selectedPackages ?? [] : selectedIds,
+    selectedExtensions,
     pendingPackages: state.pendingPackages ?? [], pendingLegacy: [], resourceExclusions: reconciled.exclusions, keptConflicts };
   const warnings = activeResources.filter((entry) => entry.existing.filter((path) => path.enabled).length > 1)
     .map((entry) => `Existing duplicate registrations for ${entry.id} were left unchanged.`);
@@ -211,7 +220,9 @@ export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cl
 
 /** Produce a bounded receipt with actions and paths, never the contents of user settings. */
 export function summarizeToolkitPlan(plan) {
-  return { directory: plan.agentDir, mode: plan.mode,
+  const enabledExtensions = plan.state.selectedExtensions;
+  const disabledExtensions = plan.inventory.resources.filter((entry) => entry.kind === "extensions" && !enabledExtensions.includes(entry.id)).map((entry) => entry.id);
+  return { directory: plan.agentDir, mode: plan.mode, extensionSelection: { enabled: enabledExtensions, disabled: disabledExtensions },
     actions: [plan.resources, plan.instructions, ...plan.packages, ...plan.migrations, ...(plan.cleanup ?? []).map((entry) => ({ ...entry, action: "delete", target: entry.path }))]
       .map((entry) => ({ id: entry.id, action: entry.action, path: entry.target ?? entry.installedPath, source: entry.source })),
     retained: plan.inventory.resources.filter((entry) => entry.existing.length).map((entry) => ({ id: entry.id,

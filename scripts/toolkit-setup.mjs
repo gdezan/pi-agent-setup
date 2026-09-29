@@ -49,9 +49,29 @@ function selectionIds(options, state, manifest) {
   }
 }
 
+function extensionSelectionIds(options, state, manifest) {
+  const extensions = manifest.resources.filter((resource) => resource.kind === "extensions");
+  const all = extensions.map((resource) => resource.id);
+  if (options.extensions !== undefined) {
+    const ids = [...new Set(options.extensions.split(",").map((id) => id.trim()))];
+    if (ids.some((id) => !id)) throw new Error("Empty toolkit extension selection: use --skip-extensions instead");
+    return ids;
+  }
+  if (options["all-extensions"]) return all;
+  if (options["skip-extensions"]) return [];
+  return (state.selectedExtensions ?? all).filter((id) => all.includes(id));
+}
+
 function checkSelection(ids, manifest) {
   for (const id of ids) {
     if (!manifest.packages.some((entry) => entry.id === id)) throw new Error(`Unknown toolkit package ID: ${id}. See --list-packages.`);
+  }
+}
+
+function checkExtensionSelection(ids, manifest) {
+  const known = new Set(manifest.resources.filter((resource) => resource.kind === "extensions").map((resource) => resource.id));
+  for (const id of ids) {
+    if (!known.has(id)) throw new Error(`Unknown toolkit extension ID: ${id}. See manifest.json resources.`);
   }
 }
 
@@ -106,10 +126,13 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     const snapshotCleanup = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: [], keep }).candidates;
     const snapshot = snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cleanup: snapshotCleanup });
     let ids = selectionIds(options, state, manifest);
+    let selectedExtensions = extensionSelectionIds(options, state, manifest);
     let cleanup = [];
     let plan;
     let keptReported = false;
     const canChoose = ids === undefined && ui.interactive;
+    const canChooseExtensions = ui.interactive && options.extensions === undefined && !options["all-extensions"] &&
+      !options["skip-extensions"] && !options["reuse-selection"];
     if (ids === undefined && !ui.interactive) {
       if (!state.selectedPackages) throw new Error("Toolkit package selection requires a terminal or saved choices: use --packages, --all-packages, or --skip-packages");
       ids = selectionIds({ "reuse-selection": true }, state, manifest);
@@ -118,13 +141,16 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     while (true) {
       if (canChoose) ids = await ui.packages(inventory, ids ?? initial);
       checkSelection(ids, manifest);
+      if (canChooseExtensions && ui.extensions) selectedExtensions = await ui.extensions(inventory, selectedExtensions);
+      checkExtensionSelection(selectedExtensions, manifest);
       const { candidates: cleanupCandidates, kept } = listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds: ids, keep });
       // Say what the keep list saved, so an honoured entry is visible rather than
       // looking like the cleanup step quietly forgot it.
       if (kept.length > 0 && !keptReported) { keptReported = true; ui.kept?.(TOOLKIT_KEEP_FILE, kept); }
       // Deletions are never inherited from saved choices or accepted by noninteractive flags.
       cleanup = ui.interactive ? await ui.cleanup?.(cleanupCandidates) ?? [] : [];
-      const build = () => planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds: ids, options });
+      const build = () => planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory,
+        selectedIds: ids, selectedExtensions, options });
       plan = build();
       plan.cleanup = cleanup;
       if (!options["dry-run"]) {
@@ -155,10 +181,10 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
         ui.finish(receipt); return receipt;
       }
       if (!ui.interactive || options.yes) break;
-      const choice = await ui.confirm({ canChoose });
+      const choice = await ui.confirm({ canChoose: canChoose || canChooseExtensions });
       if (choice === "cancel") throw new ToolkitCancelled();
       if (choice === "back") {
-        if (canChoose) continue;
+        if (canChoose || canChooseExtensions) continue;
         throw new ToolkitCancelled();
       }
       break;
@@ -235,7 +261,7 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     const after = await inspectToolkitInventory({ ...inspection, settings: currentSettings });
     // A downloaded package can reveal a previously unknown copy. Do not infer equivalence from its contents.
     const recheck = () => planToolkitSetup({ root, agentDir, settings: currentSettings, state: plan.state, manifest, preferences,
-      files, inventory: after, selectedIds: [], options: { ...options, "skip-packages": true } });
+      files, inventory: after, selectedIds: [], selectedExtensions: plan.state.selectedExtensions, options: { ...options, "skip-packages": true } });
     for (const conflict of recheck().conflicts.filter((entry) => entry.retainOnly)) {
       if (!ui.interactive) throw new Error(`New package resources need a decision: ${conflict.conflictMessage} Rerun with --reuse-selection to choose, or --conflicts keep to retain them.`);
       options.decisions ??= {};
@@ -243,7 +269,7 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     }
     checkAbort();
     plan.state.keptConflicts = recheck().state.keptConflicts;
-    const reconciled = reconcileToolkitExclusions(currentSettings, agentDir, after.resources, plan.state.resourceExclusions);
+    const reconciled = reconcileToolkitExclusions(currentSettings, agentDir, after.resources, plan.state.selectedExtensions, plan.state.resourceExclusions);
     plan.state.resourceExclusions = reconciled.exclusions;
     writeToolkitJson({ path: settingsPath, value: reconciled.settings, backupRoot, backupName: "settings.json" });
     saveState();

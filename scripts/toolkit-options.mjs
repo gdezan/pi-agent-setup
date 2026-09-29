@@ -14,6 +14,9 @@ Working third-party packages, model choices, and version pins are kept.
   --packages ID,ID       Choose packages without the checklist
   --all-packages         Select every package in manifest.json
   --skip-packages        Update custom resources only; keep saved choices
+  --extensions ID,ID     Enable selected bundled extensions
+  --all-extensions       Enable every bundled extension
+  --skip-extensions      Disable bundled extensions without removing their files
   --reuse-selection     Use this machine's saved choices
   --update-packages     Explicitly update selected packages, respecting pins
   --repair              Repair selected missing or incomplete packages
@@ -43,6 +46,7 @@ export function parseToolkitOptions(argv) {
   const { values } = parseArgs({ args: argv, options: {
     "agent-dir": { type: "string" }, link: { type: "boolean" }, copy: { type: "boolean" },
     packages: { type: "string" }, "all-packages": { type: "boolean" }, "skip-packages": { type: "boolean" },
+    extensions: { type: "string" }, "all-extensions": { type: "boolean" }, "skip-extensions": { type: "boolean" },
     "reuse-selection": { type: "boolean" }, "update-packages": { type: "boolean" }, repair: { type: "boolean" },
     conflicts: { type: "string" }, "replace-resources": { type: "boolean" }, "replace-config": { type: "boolean" },
     "replace-legacy": { type: "boolean" }, "apply-preferences": { type: "boolean" }, "dry-run": { type: "boolean" }, "non-interactive": { type: "boolean" },
@@ -51,6 +55,9 @@ export function parseToolkitOptions(argv) {
   } });
   if (["packages", "all-packages", "skip-packages", "reuse-selection"].filter((key) => values[key] !== undefined).length > 1) {
     throw new Error("Conflicting toolkit package flags: choose only one selection mode");
+  }
+  if (["extensions", "all-extensions", "skip-extensions"].filter((key) => values[key] !== undefined).length > 1) {
+    throw new Error("Conflicting toolkit extension flags: choose only one selection mode");
   }
   if (values.link && values.copy) throw new Error("Conflicting toolkit modes: choose --link or --copy");
   if (values.conflicts !== undefined && values.conflicts !== "keep") throw new Error("Invalid toolkit conflict policy: use --conflicts keep");

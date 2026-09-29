@@ -34,6 +34,13 @@ export async function createToolkitUI({ input, output, options, signal }) {
         options: inventory.packages.map((entry) => ({ value: entry.id, label: clean(entry.id),
           hint: clean(`${entry.present ? "installed" : entry.registered ? "needs repair" : "not installed"} — ${entry.description}`) })) }));
     },
+    async extensions(inventory, initialValues) {
+      const extensions = inventory.resources.filter((resource) => resource.kind === "extensions");
+      if (!extensions.length) return [];
+      return answer(await clack.multiselect({ ...common, message: "Choose bundled extensions to enable",
+        required: false, initialValues, maxItems: 12,
+        options: extensions.map((entry) => ({ value: entry.id, label: clean(entry.id), hint: clean(entry.path) })) }));
+    },
     async cleanup(candidates) {
       if (!candidates.length) return [];
       clack.note("Optional permanent deletion. Nothing is selected by default; no backup is made.", "Clean up local Pi items", common);
@@ -82,14 +89,17 @@ export async function createToolkitUI({ input, output, options, signal }) {
       }
     },
     plan(plan, settingsChanged) {
-      const rows = summarizeToolkitPlan(plan).actions.map((entry) => `${entry.action.padEnd(10)} ${entry.id}`);
-      for (const entry of summarizeToolkitPlan(plan).retained.filter((entry) => entry.paths.length)) rows.push(`retain     ${entry.id} (${entry.paths.join(", ")})`);
+      const summary = summarizeToolkitPlan(plan);
+      const rows = summary.actions.map((entry) => `${entry.action.padEnd(10)} ${entry.id}`);
+      rows.push(`enable     extensions: ${summary.extensionSelection.enabled.join(", ") || "none"}`);
+      if (summary.extensionSelection.disabled.length) rows.push(`disable    extensions: ${summary.extensionSelection.disabled.join(", ")}`);
+      for (const entry of summary.retained.filter((entry) => entry.paths.length)) rows.push(`retain     ${entry.id} (${entry.paths.join(", ")})`);
       rows.push(`${settingsChanged ? "merge" : "keep"}       local settings`, `Mode: ${plan.mode}`);
       if (clack) clack.note(clean(rows.join("\n")), "Planned changes", common);
       else line(`\nPlanned changes\n${rows.join("\n")}`);
     },
     async confirm({ canChoose = true } = {}) { return answer(await clack.select({ ...common, message: "Apply these changes? Close Pi first.", initialValue: "apply",
-      options: [{ value: "apply", label: "Apply" }, ...(canChoose ? [{ value: "back", label: "Back to package selection" }] : []), { value: "cancel", label: "Cancel" }] })); },
+      options: [{ value: "apply", label: "Apply" }, ...(canChoose ? [{ value: "back", label: "Back to selections" }] : []), { value: "cancel", label: "Cancel" }] })); },
     async task(title, fn, completed = "Step completed") {
       if (!clack) { line(title); return fn(); }
       const progress = clack.spinner({ output, signal });
