@@ -17,22 +17,32 @@
 ## Reading my prompts
 
 - I often dictate my prompts. Focus on what I mean, even when the wording is rough.
+- An exploratory question buys an explanation plus a proposed change, however small
+  the fix looks; the go-ahead starts the edit. A question asking for a named change
+  ("can you fix…") is that go-ahead.
 
 ## Engineering principles
 
-- I value clean, maintainable code and modern coding practices. Consult official
-  documentation when needed.
+- I value clean, maintainable code and modern coding practices.
 - Prefer established, well-maintained libraries when they reduce
   overall complexity or improve reliability. Do not reimplement common functionality
   without a clear reason.
 - Lean on the dependencies already in the project before writing your implementation
   or adding packages. Do not assume a library lacks capability without checking its
   documentation and types.
+- Official documentation is the first stop for how a third-party system behaves or is
+  meant to be used: the parameter or endpoint in play, plus the public issue tracker
+  of that system or of the library wrapping it. Cite what you found.
 - Make architectural decisions for the long term. Do not accept a stopgap that only
   works for now and is meant to be replaced later.
 
 ## Doing the work
 
+- Edit files with single-hunk patches anchored on a unique code line, replacing that
+  line with itself plus the change. A multi-hunk patch is rejected when a hunk's first
+  context line is a long signature, and a line next to a triple-quoted string can lose
+  its `+` marker on the way in; when a patch fails, split it into single hunks rather
+  than retrying it unchanged.
 - Infer the outcome I want from the request, conversation, and project context.
   Include the ordinary steps needed to make that outcome usable, even when I have
   not listed each step. Keep this within the requested scope.
