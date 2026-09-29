@@ -408,10 +408,10 @@ test("real CLI passes selected packages and an isolated agent directory to Pi", 
   writeFileSync(join(bin, "pi"), `#!${process.execPath}\n` +
     `const fs = require('node:fs');\n` +
     `fs.appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({args:process.argv.slice(2),cwd:process.cwd(),agentDir:process.env.PI_CODING_AGENT_DIR,sessions:process.env.PI_CODING_AGENT_SESSION_DIR})+'\\n');\n` +
-    `const path=require('node:path'); const source=process.argv[2]==='update'?process.argv[4]:process.argv[3]; const dest=source.startsWith('npm:')?path.join(process.cwd(),'npm/node_modules/pi-mcp-adapter'):path.join(process.cwd(),'git/github.com/gdezan/pi-workflow'); fs.mkdirSync(dest,{recursive:true}); fs.writeFileSync(path.join(dest,'package.json'),JSON.stringify({name:source,version:'1.2.3'}));\n`, { mode: 0o755 });
-  const pinned = { source: "npm:pi-mcp-adapter@1.2.3", extensions: [] };
+    `const path=require('node:path'); const source=process.argv[2]==='update'?process.argv[4]:process.argv[3]; const name=source.replace(/^npm:/,'').replace(/@[^@/]+$/,''); const dest=source.startsWith('npm:')?path.join(process.cwd(),'npm/node_modules',name):path.join(process.cwd(),'git/github.com/gdezan/pi-workflow'); fs.mkdirSync(dest,{recursive:true}); fs.writeFileSync(path.join(dest,'package.json'),JSON.stringify({name:source,version:'1.2.3'}));\n`, { mode: 0o755 });
+  const pinned = { source: "npm:pi-web-search@1.2.3", extensions: [] };
   writeJson(join(target, "settings.json"), { packages: [pinned] });
-  const result = spawnSync(process.execPath, [join(REPO_ROOT, "setup.mjs"), "--agent-dir", target, "--packages", "mcp,workflow", "--repair"], {
+  const result = spawnSync(process.execPath, [join(REPO_ROOT, "setup.mjs"), "--agent-dir", target, "--packages", "web-search,workflow", "--repair"], {
     encoding: "utf8",
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_PI_LOG: log,
       PI_CODING_AGENT_DIR: join(f.base, "wrong-agent"), PI_CODING_AGENT_SESSION_DIR: join(f.base, "wrong-sessions") },
@@ -419,8 +419,8 @@ test("real CLI passes selected packages and an isolated agent directory to Pi", 
   assert.equal(result.status, 0, result.stderr);
   const calls = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
   assert.deepEqual(calls.map((call) => call.args), [
-    ["install", "npm:pi-mcp-adapter@1.2.3", "--no-approve"],
     ["install", "git:git@github.com:gdezan/pi-workflow", "--no-approve"],
+    ["install", "npm:pi-web-search@1.2.3", "--no-approve"],
   ]);
   for (const call of calls) {
     assert.equal(call.cwd, target);
@@ -429,13 +429,13 @@ test("real CLI passes selected packages and an isolated agent directory to Pi", 
   }
   assert.deepEqual(json(join(target, "settings.json")).packages[0], pinned);
   assert.equal(existsSync(join(f.base, "wrong-agent")), false);
-  const updated = spawnSync(process.execPath, [join(REPO_ROOT, "setup.mjs"), "--agent-dir", target, "--packages", "mcp", "--update-packages", "--json"], {
+  const updated = spawnSync(process.execPath, [join(REPO_ROOT, "setup.mjs"), "--agent-dir", target, "--packages", "web-search", "--update-packages", "--json"], {
     encoding: "utf8", env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}`, FAKE_PI_LOG: log },
   });
   assert.equal(updated.status, 0, updated.stdout + updated.stderr);
   const updatedCalls = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
   assert.equal(updatedCalls.length, 3);
-  assert.deepEqual(updatedCalls[2].args, ["update", "--extension", "npm:pi-mcp-adapter@1.2.3", "--no-approve"]);
+  assert.deepEqual(updatedCalls[2].args, ["update", "--extension", "npm:pi-web-search@1.2.3", "--no-approve"]);
 });
 
 test("an unchanged rerun neither rewrites files nor reinstalls selected packages", async (t) => {
