@@ -5,6 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Footer } from "./pi-footer/footer.ts";
 import { fetchAntigravityUsage } from "./provider-usage/antigravity.ts";
 import { fetchClaudeUsage } from "./provider-usage/claude.ts";
+import { fetchCursorUsage } from "./provider-usage/cursor.ts";
 import { USAGE_POPUP_WIDTH, UsagePopup } from "./provider-usage/popup.ts";
 import type { AuthEntry, Snapshot, Window } from "./provider-usage/types.ts";
 import { countdown, windowSecondsFor } from "./provider-usage/windows.ts";
@@ -538,6 +539,13 @@ async function fetchCopilotUsage(auth: AuthEntry): Promise<Snapshot> {
 // ── Provider registry ─────────────────────────────────────────────────
 
 const PROVIDERS: ProviderSpec[] = [
+	// Quota belongs to the desktop account, which should match the SDK key's account.
+	{
+		id: "cursor",
+		name: "Cursor",
+		providers: ["cursor"],
+		fetch: () => fetchCursorUsage(),
+	},
 	{
 		id: "codex",
 		name: "Codex",

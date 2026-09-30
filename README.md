@@ -51,6 +51,12 @@ For live editing, run `node setup.mjs --link`. This links custom resources to th
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
 
+### Cursor usage
+
+`/usage` shows separate **Cursor Models** and **Other Models** quota bars. With a `cursor/*` model selected, the footer shows the percentage remaining in each allowance and its reset countdown.
+
+Usage reads Cursor's desktop login read-only, not the `pi-cursor-sdk` API key. Sign in to the same account in Cursor desktop and Pi. If the desktop login expires, open Cursor and sign in again; this extension does not refresh or write credentials.
+
 ## Update
 
 From this checkout, with Pi closed:
