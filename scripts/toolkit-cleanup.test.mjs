@@ -106,3 +106,20 @@ test("the keep list also covers a local package registered in settings", (t) => 
   assert.deepEqual(candidates, []);
   assert.deepEqual(kept, ["extensions/custom"]);
 });
+
+test("herdr agent state is not offered as an unselected local package", (t) => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-keep-herdr-state-"));
+  t.after(() => rmSync(agentDir, { recursive: true, force: true }));
+  const extensionPath = join(agentDir, "extensions/herdr-agent-state.ts");
+  mkdirSync(dirname(extensionPath), { recursive: true });
+  writeFileSync(extensionPath, "export default function herdrAgentState() {}\n");
+  const { candidates, kept } = listToolkitCleanupCandidates({
+    agentDir,
+    settings: { packages: ["extensions/herdr-agent-state.ts"] },
+    manifest: { packages: [], resources: [] },
+    selectedIds: [],
+    keep: ["extensions/herdr-agent-state.ts"],
+  });
+  assert.deepEqual(candidates, []);
+  assert.deepEqual(kept, ["extensions/herdr-agent-state.ts"]);
+});
