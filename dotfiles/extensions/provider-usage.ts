@@ -205,7 +205,7 @@ function parseCodexHeaders(headers: Record<string, string>): Snapshot | undefine
 async function fetchCodexUsage(auth: AuthEntry): Promise<Snapshot> {
 	const access = stringField(auth, "access");
 	const accountId = stringField(auth, "accountId");
-	if (!access) throw new Error("OpenAI Codex OAuth is not configured in Pi");
+	if (!access) throw new Error("OpenAI ChatGPT OAuth is not configured in Pi");
 
 	const snapshotValue = await withTimeout(async (signal) => {
 		const response = await fetch(CODEX_USAGE_URL, {
@@ -541,8 +541,8 @@ const PROVIDERS: ProviderSpec[] = [
 	{
 		id: "codex",
 		name: "Codex",
-		providers: ["openai-codex"],
-		authKey: "openai-codex",
+		providers: ["openai"],
+		authKey: "openai",
 		fetch: fetchCodexUsage,
 		parseHeaders: parseCodexHeaders,
 	},

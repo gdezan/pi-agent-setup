@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+test("OpenAI usage reads ChatGPT OAuth from openai and accepts Codex response headers", async () => {
+	const agentDir = await mkdtemp(join(tmpdir(), "provider-usage-test-"));
+	const previousDir = process.env.PI_CODING_AGENT_DIR;
+	const previousFetch = globalThis.fetch;
+	process.env.PI_CODING_AGENT_DIR = agentDir;
+	try {
+		await writeFile(join(agentDir, "auth.json"), JSON.stringify({
+			openai: { type: "oauth", access: "new-chatgpt-token" },
+			"openai-codex": { type: "oauth", access: "legacy-token" },
+		}));
+		const { default: providerUsage } = await import("../provider-usage.ts");
+		const handlers = new Map<string, Function>();
+		const commands = new Map<string, { handler: Function }>();
+		const statuses: Array<string | undefined> = [];
+		const notices: string[] = [];
+		const requests: Array<{ url: string; authorization: string | null }> = [];
+		globalThis.fetch = async (url, options) => {
+			requests.push({
+				url: String(url),
+				authorization: new Headers(options?.headers).get("authorization"),
+			});
+			return Response.json({ rate_limit: { primary_window: {
+				used_percent: 20, limit_window_seconds: 18_000,
+			} } });
+		};
+		const ctx = {
+			hasUI: true,
+			model: { provider: "openai" },
+			ui: {
+				theme: { fg: (_color: string, text: string) => text },
+				setStatus: (_id: string, text: string | undefined) => statuses.push(text),
+				notify: (text: string) => notices.push(text),
+			},
+		};
+		providerUsage({
+			on: (name: string, handler: Function) => handlers.set(name, handler),
+			registerCommand: (name: string, command: { handler: Function }) => commands.set(name, command),
+		} as Parameters<typeof providerUsage>[0]);
+		try {
+			await commands.get("usage")!.handler("refresh", ctx);
+			assert.deepEqual(requests, [{
+				url: "https://chatgpt.com/backend-api/wham/usage",
+				authorization: "Bearer new-chatgpt-token",
+			}]);
+			assert.equal(statuses.at(-1), "5h:80%");
+			assert.deepEqual(notices, ["Codex usage refreshed"]);
+			handlers.get("after_provider_response")!({ headers: {
+				"x-codex-primary-used-percent": "35",
+				"x-codex-primary-window-minutes": "300",
+			} }, ctx);
+			assert.equal(statuses.at(-1), "5h:65%");
+
+			await writeFile(join(agentDir, "auth.json"), JSON.stringify({
+				openai: { type: "api_key", key: "api-key-not-a-chatgpt-token" },
+			}));
+			await commands.get("usage")!.handler("refresh", ctx);
+			assert.equal(requests.length, 1, "API keys must not be sent to the ChatGPT quota endpoint");
+			assert.match(notices.at(-1)!, /OpenAI ChatGPT OAuth is not configured/);
+		} finally {
+			handlers.get("session_shutdown")!({}, ctx);
+		}
+	} finally {
+		globalThis.fetch = previousFetch;
+		if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = previousDir;
+		await rm(agentDir, { recursive: true, force: true });
+	}
+});
