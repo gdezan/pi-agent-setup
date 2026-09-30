@@ -41,7 +41,7 @@ export function parseCursorUsage(value: unknown): Snapshot {
 		? resetAt - startAt
 		: undefined;
 	const windows: Window[] = [];
-	for (const [key, label] of [["autoPercentUsed", "Cursor Models"], ["apiPercentUsed", "Other Models"]]) {
+	for (const [key, label] of [["autoPercentUsed", "Cursor"], ["apiPercentUsed", "Other"]]) {
 		const usedPercent = finite(plan[key]);
 		if (usedPercent === undefined) continue;
 		windows.push({ label, usedPercent: clampPercent(usedPercent), resetAt, windowSeconds });

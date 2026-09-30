@@ -59,8 +59,8 @@ test("Cursor desktop quota flows through refresh, footer and popup without crede
 		};
 		const snapshot = await fetchCursorUsage(path);
 		assert.deepEqual(snapshot.windows, [
-			{ label: "Cursor Models", usedPercent: 23.86190476190476, resetAt: 1793049566, windowSeconds: 2592000 },
-			{ label: "Other Models", usedPercent: 26, resetAt: 1793049566, windowSeconds: 2592000 },
+			{ label: "Cursor", usedPercent: 23.86190476190476, resetAt: 1793049566, windowSeconds: 2592000 },
+			{ label: "Other", usedPercent: 26, resetAt: 1793049566, windowSeconds: 2592000 },
 		]);
 		const { default: providerUsage } = await import("../provider-usage.ts");
 		const handlers = new Map<string, Function>();
@@ -76,15 +76,15 @@ test("Cursor desktop quota flows through refresh, footer and popup without crede
 		} as Parameters<typeof providerUsage>[0]);
 		shutdown = () => handlers.get("session_shutdown")!({}, ctx);
 		await commands.get("usage")!.handler("refresh", ctx);
-		assert.match(status, /^Cursor Models:76%.*Other Models:74%/);
+		assert.match(status, /^Cursor:76%.*Other:74%/);
 		let closes = 0;
 		let refreshes = 0;
 		const popup = new UsagePopup({ theme: ctx.ui.theme as never, done: () => { closes++; }, requestRender: () => {},
 			getRows: () => [{ name: "Cursor", snapshot }], refresh: () => { refreshes++; }, isRefreshing: () => false });
 		try {
 			const lines = popup.render(60);
-			assert.match(lines.join("\n"), /Cursor Models.*24%/);
-			assert.match(lines.join("\n"), /Other Models.*26%/);
+			assert.match(lines.join("\n"), /Cursor.*24%/);
+			assert.match(lines.join("\n"), /Other.*26%/);
 			popup.handleInput("r");
 			popup.handleInput("\u001b");
 			assert.equal(refreshes, 2);
@@ -108,6 +108,6 @@ test("Cursor quota rejects missing data and keeps independent model percentages"
 	}
 	assert.deepEqual(parseCursorUsage({ individualUsage: { plan: { autoPercentUsed: 0, apiPercentUsed: 105 } } }).windows
 		.map(({ label, usedPercent }) => ({ label, usedPercent })), [
-		{ label: "Cursor Models", usedPercent: 0 }, { label: "Other Models", usedPercent: 100 },
+		{ label: "Cursor", usedPercent: 0 }, { label: "Other", usedPercent: 100 },
 	]);
 });
