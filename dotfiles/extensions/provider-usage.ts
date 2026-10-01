@@ -652,6 +652,12 @@ export default function providerUsage(pi: ExtensionAPI): void {
 	let refreshTimer: ReturnType<typeof setInterval> | undefined;
 	const inFlight = new Map<string, Promise<void>>();
 
+	const stopRefreshTimer = () => {
+		if (refreshTimer) clearInterval(refreshTimer);
+		refreshTimer = undefined;
+		activeContext = undefined;
+	};
+
 	const footerHandle = Footer.registerSection({
 		id: FOOTER_ID,
 		align: "left",
@@ -750,11 +756,17 @@ export default function providerUsage(pi: ExtensionAPI): void {
 	};
 
 	pi.on("session_start", (_event, ctx) => {
+		stopRefreshTimer();
 		if (!ctx.hasUI || ctx.mode !== "tui") return;
 		activeContext = ctx;
 		updateModelVisibility(ctx);
 		refreshTimer = setInterval(() => {
-			if (activeContext && findProvider(activeContext.model)) void refresh(activeContext);
+			try {
+				if (activeContext && findProvider(activeContext.model)) void refresh(activeContext);
+			} catch {
+				// Session replacement can invalidate the context before shutdown cleanup runs.
+				stopRefreshTimer();
+			}
 		}, REFRESH_MS);
 		refreshTimer.unref?.();
 	});
@@ -791,9 +803,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
-		if (refreshTimer) clearInterval(refreshTimer);
-		refreshTimer = undefined;
-		activeContext = undefined;
+		stopRefreshTimer();
 		clearUi(ctx);
 		footerHandle.unregister();
 	});

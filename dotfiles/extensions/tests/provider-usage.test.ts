@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-test("both OpenAI providers use legacy Codex OAuth and accept Codex response headers", async () => {
+test("both OpenAI providers use legacy Codex OAuth and accept Codex response headers", async (t) => {
 	const agentDir = await mkdtemp(join(tmpdir(), "provider-usage-test-"));
 	const previousDir = process.env.PI_CODING_AGENT_DIR;
 	const previousFetch = globalThis.fetch;
@@ -67,6 +67,46 @@ test("both OpenAI providers use legacy Codex OAuth and accept Codex response hea
 				"x-codex-primary-window-minutes": "300",
 			} }, ctx);
 			assert.equal(statuses.at(-1), "5h:65%");
+
+			for (const outcome of ["success", "failure"] as const) {
+				await t.test(`a late fetch ${outcome} does not update a replaced session`, async () => {
+					const fetchStarted = Promise.withResolvers<void>();
+					const response = Promise.withResolvers<Response>();
+					const savedFetch = globalThis.fetch;
+					let stale = false;
+					const guardedCtx = {
+						model: ctx.model,
+						ui: ctx.ui,
+						get hasUI() {
+							if (stale) throw new Error("This extension ctx is stale after session replacement or reload.");
+							return ctx.hasUI;
+						},
+					};
+					globalThis.fetch = () => {
+						fetchStarted.resolve();
+						return response.promise;
+					};
+					try {
+						const pending = commands.get("usage")!.handler("refresh", guardedCtx);
+						await fetchStarted.promise;
+						stale = true;
+						const statusCount = statuses.length;
+						const noticeCount = notices.length;
+						if (outcome === "success") {
+							response.resolve(Response.json({ rate_limit: { primary_window: {
+								used_percent: 50, limit_window_seconds: 18_000,
+							} } }));
+						} else {
+							response.reject(new Error("Quota request failed"));
+						}
+						await assert.doesNotReject(pending);
+						assert.equal(statuses.length, statusCount);
+						assert.equal(notices.length, noticeCount);
+					} finally {
+						globalThis.fetch = savedFetch;
+					}
+				});
+			}
 
 			await writeFile(join(agentDir, "auth.json"), JSON.stringify({
 				openai: { type: "oauth", access: "new-chatgpt-token" },
