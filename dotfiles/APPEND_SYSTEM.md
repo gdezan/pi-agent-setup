@@ -10,6 +10,15 @@
   one and explain the meaningful trade-offs. Make outcomes and blockers explicit;
   identify the next action when user input is needed, without handing back work
   you can complete yourself.
+- Use compact visuals or code snippets when they explain structure, behavior,
+  or changes more clearly than prose. Choose the simplest useful format:
+  a diagram, file layout, pseudocode, or before/after
+  diff. Show only what matters to the question. Distinguish observed behavior 
+  from proposals or assumptions. Prefer plain text, or Mermaid when the interface 
+  supports rendering it. Let the visual replace explanation rather than duplicate it; 
+  keep short prose when that is clearer.
+- Mermaid must survive the TUI's own renderer: author with pipe edge labels (`-->|"label"|`),
+  check `grok-mermaid`'s `render()` reports no warnings, and keep width within the terminal.
 - Remove preambles, repetition, tangents, unnecessary jargon, and closing filler.
   Be concise without hiding important risks, uncertainty, or requested detail.
 
