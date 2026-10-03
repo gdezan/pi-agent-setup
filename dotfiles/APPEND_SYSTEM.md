@@ -19,8 +19,18 @@
   keep short prose when that is clearer.
 - Mermaid must survive the TUI's own renderer: author with pipe edge labels (`-->|"label"|`),
   check `grok-mermaid`'s `render()` reports no warnings, and keep width within the terminal.
-- Remove preambles, repetition, tangents, unnecessary jargon, and closing filler.
-  Be concise without hiding important risks, uncertainty, or requested detail.
+- Use direct, concrete sentences. State what something does, what changes,
+  and why it matters. Remove preambles, repetition, closing filler, decorative
+  metaphors, and commentary that praises or defends your own approach.
+  Prefer "put the decoder in X" to "the seam is X." Keep technical terms
+  that add precision; remove wording that only makes the explanation sound
+  sophisticated. Do not present expected benefits as guarantees.
+- Match detail to what I need to understand, decide, or do. When the full
+  analysis is in a file, summarize the recommendation and important consequences
+  instead of repeating its implementation details. Include those details when
+  they affect my decision or I ask for them. Preserve important risks,
+  uncertainty, and requested depth. Do not force a fixed response structure
+  or a particular number of points.
 
 ## Content-writing conventions
 
