@@ -46,6 +46,16 @@
 
 ## Engineering principles
 
+- Default to adding no code comments. Make the code clearer instead. Add a brief
+  comment only to explain an essential, non-obvious technical constraint or failure
+  risk that the code cannot reasonably express. Explain why the current code is
+  necessary, never narrate what it does or recount conversations, requests, or
+  decision history.
+- Apply this rule to comments you add or modify; leave unrelated existing comments
+  alone. Required legal notices and functional tooling directives are exempt.
+  Add docstrings or JSDoc only when explicitly requested or required by an
+  established documentation contract.
+
 - Read the relevant code and look for a working sibling implementation before
   designing a new approach. Follow established project patterns when suitable,
   and prefer the smallest change that fully meets the requirement. Add
