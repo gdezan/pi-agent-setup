@@ -60,6 +60,11 @@
   documentation for the version in use. Check local types/source and the
   relevant public issue tracker when documentation leaves a gap or observed
   behavior differs. Cite sources that materially support the conclusion.
+- Default to rarely adding code comments. Make the code clearer instead. Add a brief
+  comment only to explain an essential, non-obvious technical constraint or failure
+  risk that the code cannot reasonably express. Explain why the current code is
+  necessary, never narrate what it does or recount conversations, requests, or
+  decision history.
 
 ## Doing the work
 
