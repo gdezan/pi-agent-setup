@@ -4,14 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-test("both OpenAI providers use legacy Codex OAuth and accept Codex response headers", async (t) => {
+test("OpenAI shows verified shared-plan usage separately from Codex", async (t) => {
 	const agentDir = await mkdtemp(join(tmpdir(), "provider-usage-test-"));
 	const previousDir = process.env.PI_CODING_AGENT_DIR;
 	const previousFetch = globalThis.fetch;
 	process.env.PI_CODING_AGENT_DIR = agentDir;
 	try {
 		await writeFile(join(agentDir, "auth.json"), JSON.stringify({
-			openai: { type: "oauth", access: "new-chatgpt-token" },
+			openai: { type: "oauth", access: "new-chatgpt-token", clientId: "pi-app", scopes: ["chatgpt.tokens.use.direct"] },
 			"openai-codex": { type: "oauth", access: "legacy-token", accountId: "legacy-account" },
 		}));
 		const { default: providerUsage } = await import("../provider-usage.ts");
@@ -26,6 +26,9 @@ test("both OpenAI providers use legacy Codex OAuth and accept Codex response hea
 				authorization: new Headers(options?.headers).get("authorization"),
 				accountId: new Headers(options?.headers).get("chatgpt-account-id"),
 			});
+			if (String(url).endsWith("/chatpass/apps")) {
+				return Response.json({ items: [{ id: "pi-app", windows: [{ used_percent: 99 }] }] });
+			}
 			return Response.json({ rate_limit: { primary_window: {
 				used_percent: 20, limit_window_seconds: 18_000,
 			} } });
@@ -46,21 +49,25 @@ test("both OpenAI providers use legacy Codex OAuth and accept Codex response hea
 		try {
 			await commands.get("usage")!.handler("refresh", ctx);
 			assert.deepEqual(requests, [{
+				url: "https://chatgpt.com/backend-api/wham/usage/chatpass/apps",
+				authorization: "Bearer legacy-token",
+				accountId: "legacy-account",
+			}, {
 				url: "https://chatgpt.com/backend-api/wham/usage",
 				authorization: "Bearer legacy-token",
 				accountId: "legacy-account",
 			}]);
 			assert.equal(statuses.at(-1), "5h:80%");
-			assert.deepEqual(notices, ["Codex usage refreshed"]);
+			assert.deepEqual(notices, ["OpenAI usage refreshed"]);
 			handlers.get("after_provider_response")!({ headers: {
 				"x-codex-primary-used-percent": "35",
 				"x-codex-primary-window-minutes": "300",
 			} }, ctx);
-			assert.equal(statuses.at(-1), "5h:65%");
+			assert.equal(statuses.at(-1), "5h:80%", "Codex headers must not overwrite OpenAI plan usage");
 			ctx.model.provider = "openai-codex";
 			await commands.get("usage")!.handler("refresh", ctx);
-			assert.equal(requests.length, 2);
-			assert.deepEqual(requests[1], requests[0]);
+			assert.equal(requests.length, 3);
+			assert.deepEqual(requests[2], requests[1]);
 			assert.equal(statuses.at(-1), "5h:80%");
 			handlers.get("after_provider_response")!({ headers: {
 				"x-codex-primary-used-percent": "35",
@@ -109,13 +116,14 @@ test("both OpenAI providers use legacy Codex OAuth and accept Codex response hea
 			}
 
 			await writeFile(join(agentDir, "auth.json"), JSON.stringify({
-				openai: { type: "oauth", access: "new-chatgpt-token" },
+				openai: { type: "oauth", access: "new-chatgpt-token", clientId: "pi-app", scopes: ["chatgpt.tokens.use.direct"] },
 				"openai-codex": { type: "api_key", key: "api-key-not-a-chatgpt-token" },
 			}));
 			ctx.model.provider = "openai";
 			await commands.get("usage")!.handler("refresh", ctx);
-			assert.equal(requests.length, 2, "Neither API keys nor new OpenAI tokens may reach the Codex quota endpoint");
-			assert.match(notices.at(-1)!, /OpenAI Codex OAuth is not configured/);
+			assert.equal(requests.length, 3, "Neither API keys nor new OpenAI tokens may reach the Codex quota endpoint");
+			assert.match(notices.at(-1)!, /Codex OAuth/);
+			assert.equal(statuses.at(-1), "OpenAI usage: --", "failed verification must clear the old quota");
 		} finally {
 			handlers.get("session_shutdown")!({}, ctx);
 		}

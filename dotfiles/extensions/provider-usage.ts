@@ -6,6 +6,7 @@ import { Footer } from "./pi-footer/footer.ts";
 import { fetchAntigravityUsage } from "./provider-usage/antigravity.ts";
 import { fetchClaudeUsage } from "./provider-usage/claude.ts";
 import { fetchCursorUsage } from "./provider-usage/cursor.ts";
+import { fetchOpenaiPlanPayload } from "./provider-usage/openai.ts";
 import { USAGE_POPUP_WIDTH, UsagePopup } from "./provider-usage/popup.ts";
 import type { AuthEntry, Snapshot, Window } from "./provider-usage/types.ts";
 import { countdown, windowSecondsFor } from "./provider-usage/windows.ts";
@@ -549,11 +550,22 @@ const PROVIDERS: ProviderSpec[] = [
 	{
 		id: "codex",
 		name: "Codex",
-		// Treat OpenAI as Codex for usage only; its new OAuth token cannot read this endpoint.
-		providers: ["openai-codex", "openai"],
+		providers: ["openai-codex"],
 		authKey: "openai-codex",
 		fetch: fetchCodexUsage,
 		parseHeaders: parseCodexHeaders,
+	},
+	{
+		id: "openai",
+		name: "OpenAI",
+		providers: ["openai"],
+		authKey: "openai",
+		fetch: async (auth) => {
+			const stored = await readAuthFile();
+			const value = parseCodexUsage(await fetchOpenaiPlanPayload(auth, stored["openai-codex"]));
+			if (!value) throw new Error("OpenAI shared-plan usage response contained no recognized windows");
+			return value;
+		},
 	},
 	// Display-only observer: Claude Code is a separate login, so it never
 	// matches ctx.model — the popup shows it, the footer cannot.
@@ -714,6 +726,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 				}
 				if (notify) ctx.ui.notify(`${provider.name} usage refreshed`, "info");
 			} catch (error) {
+				if (provider.id === "openai") snapshots.delete(provider.id);
 				errors.set(provider.id, error instanceof Error ? error.message : String(error));
 				try {
 					render(ctx);

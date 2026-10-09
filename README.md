@@ -51,6 +51,14 @@ For live editing, run `node setup.mjs --link`. This links custom resources to th
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
 
+### OpenAI shared-plan usage
+
+With an `openai/*` model selected and `/login openai` configured for ChatGPT, the footer and `/usage` show only shared-plan quota windows and reset countdowns. App-specific usage is not displayed.
+
+Usage prefers Pi's `openai-codex` OAuth login, falling back to the Codex CLI login in `$CODEX_HOME/auth.json` or `~/.codex/auth.json`. Both logins must use the same account/workspace. The extension verifies that the Codex account contains exactly one app registration matching the OpenAI login before reading plan usage. It never sends the native OpenAI token to the quota endpoints or rewrites credentials. If the companion login expires or is rejected, sign in again with `/login openai-codex` or Codex CLI.
+
+These quota endpoints are undocumented. Failed verification clears the OpenAI meter rather than showing stale or unrelated quota. Legacy `openai-codex` usage remains separate.
+
 ### Cursor usage
 
 `/usage` shows separate **Cursor** and **Other** quota bars. With a `cursor/*` model selected, the footer shows the percentage remaining in each allowance and its reset countdown.
