@@ -33,8 +33,7 @@
       "./dotfiles/extensions/provider-usage.ts",
       "./dotfiles/extensions/session-autoname.ts",
       "./dotfiles/extensions/pi-cache-observer/index.ts",
-      "./dotfiles/local-packages/ask-user-question/index.ts",
-      "./dotfiles/local-packages/rpiv-todo-no-overlay/index.ts"
+      "./dotfiles/local-packages/ask-user-question/index.ts"
     ],
     "skills": [
       "./dotfiles/skills"

@@ -19,7 +19,7 @@ for (const legacy of [false, true]) {
     if (legacy) {
       for (const kind of ["extensions", "skills", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
       writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultModel: "keep-local-model", theme: "light",
-        packages: ["local-packages/ask-user-question", "local-packages/rpiv-todo-no-overlay",
+        packages: ["local-packages/ask-user-question",
           { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/model-tiers.ts"] }] }));
     }
     const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"),
@@ -34,7 +34,7 @@ for (const legacy of [false, true]) {
       await loader.reload();
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
-      assert.equal(loader.getExtensions().extensions.length, 7);
+      assert.equal(loader.getExtensions().extensions.length, 6);
       for (const name of ['impeccable', 'analyze-sessions']) {
         assert.equal(loader.getSkills().skills.filter((skill) => skill.name === name).length, 1);
       }
