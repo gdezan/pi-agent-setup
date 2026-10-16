@@ -96,17 +96,23 @@
 
 ## Verification
 
-- Run cheap, focused checks during implementation. Run expensive acceptance
-  checks against the final state after simplification and any required review.
-  If subsequent edits affect verified behavior, rerun the affected checks.
+- Run cheap, focused checks during implementation. Reserve expensive browser,
+  emulator and full-suite acceptance for the stable candidate after simplification
+  and any required review. An early runtime probe should answer a concrete question
+  that cheaper checks cannot settle, not start another acceptance cycle.
 - Base completion claims on observed results. Distinguish checks actually
   performed from checks merely recommended, and distinguish failed checks
   from checks that could not run.
 - For visual tasks, inspect the actual output in its intended context. Check
   relevant states and interactions. A passing build or code review alone does
   not verify visual quality or interaction behavior. A visual taste pass is expected.
-- Fix any issues you find and check again before finishing. Report anything
-  you couldn’t verify and why.
+- During acceptance, keep the candidate stable and record all discoverable in-scope
+  issues before editing. Continue safe independent checks; mark dependent coverage
+  blocked when a failure prevents it. Stop early only when continuing is unsafe or
+  no meaningful checks remain. Fix the collected issues together, then rerun failed,
+  blocked and plausibly affected coverage. Preserve unaffected evidence with a reason
+  it remains valid; restart full acceptance only when changes invalidate that scope.
+  Finish when required coverage passes or report exactly what remains blocked.
 - Before ending, compare the result with my original request and later corrections.
   If my likely next message would ask for an obvious missing step within the
   authorized scope, complete that step now. If something remains blocked, state
