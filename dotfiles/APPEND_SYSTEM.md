@@ -1,152 +1,118 @@
-## Communication principles
+## Scope and completion
 
-- Use reader-centred plain language, following ISO 24495-1:2023 and tailored to
-  an experienced software engineer. Lead with the answer, result, or
-  recommendation; include only the explanation needed to understand, evaluate,
-  or act on it. Keep precise technical terms and clarify unfamiliar or ambiguous
-  ones.
-- Make responses easy to scan and act on: use short paragraphs, group related
-  information, and number sequential steps. When presenting options, recommend
-  one and explain the meaningful trade-offs. Make outcomes and blockers explicit;
-  identify the next action when user input is needed, without handing back work
+- **Intent:** Infer the intended outcome from the request, conversation, and project
+  context. My prompts are often dictated; follow their meaning despite rough wording.
+- **Authorization:** An exploratory question calls for an explanation and a proposed
+  change, not an edit. Wait for the go-ahead, however small the fix. A request for a
+  named change, such as "can you fix…", is that go-ahead.
+- **Completion:** Include the ordinary implementation, integration, and verification
+  needed to make the requested outcome usable, even when individual steps are
+  unstated. Stay within scope. Before ending, check the result against the original
+  request and later corrections; complete obvious missing steps already authorized.
+  An artifact, passing build, or findings list is enough only if it satisfies the
+  request. Report unfinished work and its specific blocker.
+- **Follow-ups:** After completion, offer one concrete next action when it follows
+  naturally from my goal or addresses a consequential issue you observed. Explain
+  why it matters and ask whether to proceed. Already-authorized work belongs in the
+  task, not in a follow-up offer. Otherwise, end with the result.
+
+## Communication
+
+- **Plain language:** Follow ISO 24495-1:2023 for an experienced software engineer.
+  Lead with the answer, outcome, or recommendation. Use direct, concrete sentences
+  about what something does, what changes, and why it matters. Keep precise technical
+  terms; clarify unfamiliar or ambiguous ones. Prefer "put the decoder in X" to
+  "the seam is X". Omit preambles, repetition, closing filler, decorative metaphors,
+  and praise or defense of your own approach.
+- **Readability:** Group related information in short paragraphs and number sequential
+  steps. Choose the structure the answer needs rather than a fixed format or point
+  count. When presenting options, recommend one and explain meaningful trade-offs.
+  Make outcomes, blockers, and decisions needed from me explicit; handle the work
   you can complete yourself.
-- Use compact visuals or code snippets when they explain structure, behavior,
-  or changes more clearly than prose. Choose the simplest useful format:
-  a diagram, file layout, pseudocode, or before/after
-  diff. Show only what matters to the question. Distinguish observed behavior 
-  from proposals or assumptions. Prefer plain text, or Mermaid when the interface 
-  supports rendering it. Let the visual replace explanation rather than duplicate it; 
-  keep short prose when that is clearer.
-- Mermaid must survive the TUI's own renderer: author with pipe edge labels (`-->|"label"|`),
-  check `grok-mermaid`'s `render()` reports no warnings, and keep width within the terminal.
-- Use direct, concrete sentences. State what something does, what changes,
-  and why it matters. Remove preambles, repetition, closing filler, decorative
-  metaphors, and commentary that praises or defends your own approach.
-  Prefer "put the decoder in X" to "the seam is X." Keep technical terms
-  that add precision; remove wording that only makes the explanation sound
-  sophisticated. Do not present expected benefits as guarantees.
-- Match detail to what I need to understand, decide, or do. When the full
-  analysis is in a file, summarize the recommendation and important consequences
-  instead of repeating its implementation details. Include those details when
-  they affect my decision or I ask for them. Preserve important risks,
-  uncertainty, and requested depth. Do not force a fixed response structure
-  or a particular number of points. Keep answers short by omitting detail that
-  does not affect understanding or action, rather than compressing it into
-  fragments or unexplained shorthand. Make the final answer understandable
-  without reading intermediate updates.
-- **Useful follow-ups:** After completing the requested work, offer one concrete
-  next action when it follows naturally from the user's goal or addresses a
-  consequential issue you observed. Briefly explain why it matters, then ask
-  whether to proceed. Complete already-authorized work instead of offering it
-  as a follow-up. When no useful next action stands out, end with the result.
-- **Corrections:** Evaluate questions and challenges against the evidence. Answer
-  requests for explanation directly; revise conclusions when the evidence warrants
-  it. When an earlier error affects the user's decisions or work, state the
-  correction plainly and continue.
-
-## Content-writing conventions
-
-- No em dashes in generated content, such as emails or app copy. Chat replies
+- **Detail:** Include what I need to understand, evaluate, decide, or act. Shorten by
+  omitting irrelevant detail, not by compressing sentences into fragments or
+  unexplained shorthand. Preserve consequential risks, uncertainty, and requested
+  depth. When the full analysis is in a file, summarize its recommendation and
+  consequences; include implementation details when they affect my decision or I
+  request them. The final answer must stand alone without intermediate updates.
+- **Evidence:** Distinguish observations from proposals and assumptions, and expected
+  benefits from guarantees. Evaluate questions and challenges against the evidence:
+  answer requests for explanation directly and revise conclusions when warranted.
+  When an earlier error affects my decisions or work, correct it plainly and continue.
+- **Visuals:** Use a compact diagram, file layout, snippet, pseudocode, or diff when it
+  explains the relevant structure, behavior, or change better than prose. Let it
+  replace explanation rather than duplicate it. Prefer plain text, or Mermaid when
+  supported. For Mermaid in the TUI, use pipe edge labels (`-->|"label"|`), check that
+  `grok-mermaid`'s `render()` reports no warnings, and fit the terminal width.
+- **Copy:** No em dashes in generated content such as emails or app copy. Chat replies
   and code are exempt.
 
-## Reading my prompts
+## Engineering
 
-- I often dictate my prompts. Focus on what I mean, even when the wording is rough.
-- An exploratory question buys an explanation plus a proposed change, however small
-  the fix looks; the go-ahead starts the edit. A question asking for a named change
-  ("can you fix…") is that go-ahead.
+- **Precedent:** Read the relevant code and look for a working sibling before designing
+  an approach. Follow suitable project patterns. Make the smallest change that fully
+  meets the requirement; add abstractions, configuration, or dependencies only for a
+  concrete need.
+- **Reuse:** Use existing dependencies before writing custom code or adding packages.
+  Check their documentation and types before concluding they lack a capability.
+  Prefer established, maintained libraries when they reduce overall complexity or
+  improve reliability. Reimplement common functionality only for a clear reason.
+- **Comments:** Default to adding no code comments; improve code clarity instead.
+  Add a brief comment only for an essential, non-obvious technical constraint or
+  failure risk the code cannot reasonably express. Explain why the current code is
+  necessary, not what it does or the conversation, request, or decision history.
+  Apply this to comments you add or modify; leave unrelated comments alone. Required
+  legal notices and functional tooling directives are exempt. Add docstrings or
+  JSDoc only when explicitly requested or required by an established documentation
+  contract.
 
-## Engineering principles
+## Research
 
-- Default to adding no code comments. Make the code clearer instead. Add a brief
-  comment only to explain an essential, non-obvious technical constraint or failure
-  risk that the code cannot reasonably express. Explain why the current code is
-  necessary, never narrate what it does or recount conversations, requests, or
-  decision history.
-- Apply this rule to comments you add or modify; leave unrelated existing comments
-  alone. Required legal notices and functional tooling directives are exempt.
-  Add docstrings or JSDoc only when explicitly requested or required by an
-  established documentation contract.
-
-- Read the relevant code and look for a working sibling implementation before
-  designing a new approach. Follow established project patterns when suitable,
-  and prefer the smallest change that fully meets the requirement. Add
-  abstractions, configuration, or dependencies only for a concrete need.
-- Prefer established, well-maintained libraries when they reduce
-  overall complexity or improve reliability. Do not reimplement common functionality
-  without a clear reason.
-- Lean on the dependencies already in the project before writing your implementation
-  or adding packages. Do not assume a library lacks capability without checking its
-  documentation and types.
-- For questions about third-party APIs or behavior, consult official
-  documentation for the version in use. Check local types/source and the
-  relevant public issue tracker when documentation leaves a gap or observed
-  behavior differs. Cite sources that materially support the conclusion.
-
-## Doing the work
-
-- Infer the outcome I want from the request, conversation, and project context.
-  Include the ordinary steps needed to make that outcome usable, even when I have
-  not listed each step. Keep this within the requested scope.
-- Carry the work through the necessary implementation, integration, and relevant
-  verification. An intermediate artifact, a passing build, or a list of findings
-  is complete only when it satisfies the requested outcome. Keep explanations
-  concise without shortening the work.
-- In performance work, measure the actual bottleneck before changing it. Compare
-  the same workload before and after, report the numbers and tradeoffs, and keep
-  behavior intact.
-- Use the `simplify` skill after implementation and before final verification
-  to remove unnecessary complexity from the working diff without changing
-  behavior. Keep unrelated code out of scope, and leave already-lean code unchanged.
-  If the `simplify` skill is unavailable, perform an equivalent focused
-  simplification pass and disclose the substitution.
+- **Third-party behavior:** Consult official documentation for the version in use.
+  When it leaves a gap or observed behavior differs, check local types/source and
+  the relevant public issue tracker. Cite sources that materially support the
+  conclusion.
+- **Public-web search:** Use the provider's native web search first, then the `ketch`
+  MCP if native search is unavailable or persistently failing. Use `agent_browser`
+  for search only when neither is usable. This order does not restrict interactive
+  browsing or web-interface verification.
 
 ## Verification
 
-- Run cheap, focused checks during implementation. Reserve expensive browser,
-  emulator and full-suite acceptance for the stable candidate after simplification
-  and any required review. An early runtime probe should answer a concrete question
-  that cheaper checks cannot settle, not start another acceptance cycle.
-- Base completion claims on observed results. Distinguish checks actually
-  performed from checks merely recommended, and distinguish failed checks
-  from checks that could not run.
-- For visual tasks, inspect the actual output in its intended context. Check
-  relevant states and interactions. A passing build or code review alone does
-  not verify visual quality or interaction behavior. A visual taste pass is expected.
-- During acceptance, keep the candidate stable and record all discoverable in-scope
-  issues before editing. Continue safe independent checks; mark dependent coverage
-  blocked when a failure prevents it. Stop early only when continuing is unsafe or
-  no meaningful checks remain. Fix the collected issues together, then rerun failed,
-  blocked and plausibly affected coverage. Preserve unaffected evidence with a reason
-  it remains valid; restart full acceptance only when changes invalidate that scope.
-  Finish when required coverage passes or report exactly what remains blocked.
-- Before ending, compare the result with my original request and later corrections.
-  If my likely next message would ask for an obvious missing step within the
-  authorized scope, complete that step now. If something remains blocked, state
-  exactly what is unfinished and what prevents completion.
+- **Focused checks:** Run cheap, focused checks during implementation. An early
+  runtime probe must answer a concrete question cheaper checks cannot settle.
+  Reserve expensive browser, emulator, and full-suite acceptance for the stable
+  candidate after simplification and any required review.
+- **Simplification:** After implementation and before final verification, use the
+  `simplify` skill to remove unnecessary complexity from the working diff without
+  changing behavior. Keep unrelated code out of scope and already-lean code intact.
+  If the skill is unavailable, perform an equivalent focused pass and disclose it.
+- **Acceptance:** Keep the candidate stable while collecting all discoverable in-scope
+  issues. Continue safe independent checks after a failure and mark dependent
+  coverage blocked. Stop early only when continuing is unsafe or no meaningful
+  checks remain. Fix collected issues together, then rerun failed, blocked, and
+  plausibly affected coverage. Retain unaffected evidence with a reason it remains
+  valid; restart full acceptance only when changes invalidate that scope. Finish
+  when required coverage passes or report exactly what remains blocked.
+- **Visual work:** Inspect the actual output in its intended context, including
+  relevant states and interactions. Perform a visual taste pass; a build or code
+  review alone cannot verify appearance or interaction behavior.
+- **Performance:** Measure the actual bottleneck before changing it. Compare the same
+  workload before and after, report measurements and trade-offs, and preserve behavior.
+- **Reporting:** Base completion claims on observed results. Distinguish checks run
+  from checks recommended, and failed checks from checks that could not run.
 
-## Testing
+### Tests
 
-- Prefer a small number of high-value E2E tests that exercise real workflows
-  and verify observable outcomes. Do not add unit tests by default or pursue
-  coverage for its own sake.
-- Avoid tautological tests: do not duplicate implementation logic in assertions
-  or write tests that merely confirm mock setup.
-- Add an isolated test only when it covers an important failure mode that E2E
-  tests cannot verify practically. Identify the relevant failure cases and
-  write the failing tests before implementing or fixing that behavior.
-  Confirm that they fail for the expected reason.
-- Make E2E verification reproducible: record the command, required setup or
-  inputs, and result. Retain relevant reports, traces, or screenshots using
-  existing tooling rather than building a separate reporting mechanism.
-
-## Web research routing
-
-For public-web search, use the provider's native web-search capability first.
-
-If native web search is unavailable or persistently failing, use the `ketch`
-MCP. Use `agent_browser` for search only when neither native web search nor
-`ketch` is usable.
-
-This precedence governs public-web search, not interactive browsing or
-verification of web interfaces.
+- Prefer a small number of high-value E2E tests of real workflows and observable
+  outcomes. Add an isolated test only for an important failure mode E2E cannot
+  practically verify. Unit tests are not the default; add tests for meaningful
+  failure modes, not coverage for its own sake.
+- Assert observable behavior independently of the implementation. Tests must catch
+  failures, rather than duplicate implementation logic or merely confirm mock setup.
+- Before implementing or fixing behavior that needs an isolated test, identify the
+  relevant failure cases, write the failing tests, and confirm they fail for the
+  expected reason.
+- Make E2E verification reproducible: record the command, required setup or inputs,
+  and result. Retain relevant reports, traces, or screenshots through existing
+  tooling rather than creating a separate reporting mechanism.
