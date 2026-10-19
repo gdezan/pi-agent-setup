@@ -4,6 +4,7 @@ import { readToolkitJson, toolkitPackageIdentity, toolkitPackageSource } from ".
 import { toolkitPathStat } from "./toolkit-files.mjs";
 
 export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
+const HERDR_AGENT_STATE_PATH = "extensions/herdr-agent-state.ts";
 
 /**
  * Read the machine-local keep list.
@@ -16,7 +17,7 @@ export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
  * declining the same prompt on every run.
  *
  * An entry is a path relative to the agent directory. A directory entry keeps
- * everything beneath it. Absent file means no keeps, which is the old behaviour.
+ * everything beneath it. The Herdr integration is protected independently of this list.
  */
 export function readToolkitKeep(agentDir) {
   const path = join(agentDir, TOOLKIT_KEEP_FILE);
@@ -36,7 +37,8 @@ export function isKeptToolkitPath(relativePath, keep) {
 /** Guard a permanent delete against a configured local path escaping Pi's conventional resource roots. */
 export function assertToolkitCleanupPath(agentDir, path) {
   const parent = dirname(path);
-  if (!["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
+  if (relative(agentDir, path) === HERDR_AGENT_STATE_PATH ||
+      !["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
       toolkitPathStat(parent)?.isSymbolicLink()) {
     throw new Error(`Unsafe toolkit cleanup path: ${path}`);
   }
@@ -45,7 +47,7 @@ export function assertToolkitCleanupPath(agentDir, path) {
 /**
  * List unselected configured packages and unrelated loose Pi resources.
  *
- * Excludes managed legacy paths and anything on the machine-local keep list.
+ * Excludes the Herdr integration, managed legacy paths, and anything on the machine-local keep list.
  * Returns the kept paths that actually matched a candidate alongside the
  * candidates, so the caller can say what it honoured instead of silently
  * dropping entries the person expected to see.
@@ -71,6 +73,7 @@ export function listToolkitCleanupCandidates({ agentDir, settings, manifest, sel
       legacy.has(relative(agentDir, path)))) continue;
     // A keep entry is an agent-directory path, so it can only address a local package.
     if (path && isKeptToolkitPath(relative(agentDir, path), keep)) { honoured.add(relative(agentDir, path)); continue; }
+    if (path && relative(agentDir, path) === HERDR_AGENT_STATE_PATH) continue;
     candidates.push({ id: `package:${source}`, kind: "package", label: source, source, path });
   }
   for (const kind of ["extensions", "skills", "local-packages"]) {
@@ -81,6 +84,7 @@ export function listToolkitCleanupCandidates({ agentDir, settings, manifest, sel
       const relativePath = relative(agentDir, path);
       if (legacy.has(relativePath) || packagePaths.has(path)) continue;
       if (isKeptToolkitPath(relativePath, keep)) { honoured.add(relativePath); continue; }
+      if (relativePath === HERDR_AGENT_STATE_PATH) continue;
       const stat = lstatSync(path);
       const recognized = kind === "extensions" ?
         stat.isFile() && /\.[cm]?[jt]s$/.test(name) || stat.isDirectory() && (existsSync(join(path, "index.ts")) || existsSync(join(path, "index.js"))) :
