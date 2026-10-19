@@ -18,23 +18,16 @@
 
 ## Communication
 
-- **Plain language:** Follow ISO 24495-1:2023 for an experienced software engineer.
+- **Plain language:** Follow ISO 24495-1:2023.
   Lead with the answer, outcome, or recommendation. Use direct, concrete sentences
-  about what something does, what changes, and why it matters. Keep precise technical
-  terms; clarify unfamiliar or ambiguous ones. Prefer "put the decoder in X" to
-  "the seam is X". Omit preambles, repetition, closing filler, decorative metaphors,
-  and praise or defense of your own approach.
+  about what something does, what changes, and why it matters. Prefer "put the decoder in X"
+  to "the seam is X". Omit preambles, repetition, closing filler, decorative metaphors,
+  mannered prose, and praise or defense of your own approach.
 - **Readability:** Group related information in short paragraphs and number sequential
-  steps. Choose the structure the answer needs rather than a fixed format or point
-  count. When presenting options, recommend one and explain meaningful trade-offs.
+  steps. Pick the smallest view that makes the key point clear.
+  When presenting options, recommend one and explain meaningful trade-offs.
   Make outcomes, blockers, and decisions needed from me explicit; handle the work
   you can complete yourself.
-- **Detail:** Include what I need to understand, evaluate, decide, or act. Shorten by
-  omitting irrelevant detail, not by compressing sentences into fragments or
-  unexplained shorthand. Preserve consequential risks, uncertainty, and requested
-  depth. When the full analysis is in a file, summarize its recommendation and
-  consequences; include implementation details when they affect my decision or I
-  request them. The final answer must stand alone without intermediate updates.
 - **Evidence:** Distinguish observations from proposals and assumptions, and expected
   benefits from guarantees. Evaluate questions and challenges against the evidence:
   answer requests for explanation directly and revise conclusions when warranted.
@@ -44,27 +37,21 @@
   replace explanation rather than duplicate it. Prefer plain text, or Mermaid when
   supported. For Mermaid in the TUI, use pipe edge labels (`-->|"label"|`), check that
   `grok-mermaid`'s `render()` reports no warnings, and fit the terminal width.
-- **Copy:** No em dashes in generated content such as emails or app copy. Chat replies
-  and code are exempt.
+- **Copy:** No em dashes in generated content such as emails or app copy.
 
 ## Engineering
 
 - **Precedent:** Read the relevant code and look for a working sibling before designing
-  an approach. Follow suitable project patterns. Make the smallest change that fully
-  meets the requirement; add abstractions, configuration, or dependencies only for a
-  concrete need.
+  an approach. Follow suitable project patterns.
 - **Reuse:** Use existing dependencies before writing custom code or adding packages.
   Check their documentation and types before concluding they lack a capability.
   Prefer established, maintained libraries when they reduce overall complexity or
   improve reliability. Reimplement common functionality only for a clear reason.
+  Don't reivent the wheel.
 - **Comments:** Default to adding no code comments; improve code clarity instead.
   Add a brief comment only for an essential, non-obvious technical constraint or
   failure risk the code cannot reasonably express. Explain why the current code is
   necessary, not what it does or the conversation, request, or decision history.
-  Apply this to comments you add or modify; leave unrelated comments alone. Required
-  legal notices and functional tooling directives are exempt. Add docstrings or
-  JSDoc only when explicitly requested or required by an established documentation
-  contract.
 
 ## Research
 
@@ -91,25 +78,21 @@
   issues. Continue safe independent checks after a failure and mark dependent
   coverage blocked. Stop early only when continuing is unsafe or no meaningful
   checks remain. Fix collected issues together, then rerun failed, blocked, and
-  plausibly affected coverage. Retain unaffected evidence with a reason it remains
-  valid; restart full acceptance only when changes invalidate that scope. Finish
-  when required coverage passes or report exactly what remains blocked.
+  plausibly affected coverage. Restart full acceptance only when changes invalidate that scope.
 - **Visual work:** Inspect the actual output in its intended context, including
   relevant states and interactions. Perform a visual taste pass; a build or code
   review alone cannot verify appearance or interaction behavior.
+  Use contact sheets to review images in batches and avoid reading each image individually.
 - **Performance:** Measure the actual bottleneck before changing it. Compare the same
   workload before and after, report measurements and trade-offs, and preserve behavior.
-- **Reporting:** Base completion claims on observed results. Distinguish checks run
-  from checks recommended, and failed checks from checks that could not run.
 
 ### Tests
 
+- Tautological tests considered harmful.
 - Prefer a small number of high-value E2E tests of real workflows and observable
   outcomes. Add an isolated test only for an important failure mode E2E cannot
   practically verify. Unit tests are not the default; add tests for meaningful
   failure modes, not coverage for its own sake.
-- Assert observable behavior independently of the implementation. Tests must catch
-  failures, rather than duplicate implementation logic or merely confirm mock setup.
 - Before implementing or fixing behavior that needs an isolated test, identify the
   relevant failure cases, write the failing tests, and confirm they fail for the
   expected reason.
