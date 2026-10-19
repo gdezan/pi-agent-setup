@@ -20,13 +20,17 @@ ANSI = re.compile(rb"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 class WizardTerminal:
-    def __init__(self, home, target, *args, columns=100):
+    def __init__(self, home, target, *args, columns=100, color=False):
         self.master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, columns, 0, 0))
         env = {**os.environ, "HOME": str(home), "USERPROFILE": str(home), "TERM": "xterm-256color", "NO_COLOR": "1"}
         env.pop("CI", None)
         env.pop("FORCE_COLOR", None)
-        self.process = subprocess.Popen([shutil.which("node"), str(ROOT / "setup.mjs"), "--agent-dir", str(target), "--no-color", *args],
+        if color:
+            env.pop("NO_COLOR", None)
+            env["FORCE_COLOR"] = "1"
+        color_args = [] if color else ["--no-color"]
+        self.process = subprocess.Popen([shutil.which("node"), str(ROOT / "setup.mjs"), "--agent-dir", str(target), *color_args, *args],
                                         stdin=slave, stdout=slave, stderr=slave, env=env)
         os.close(slave)
         self.raw = b""
@@ -159,6 +163,33 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(instructions.read_text(), "MACHINE NOTES\n")
         self.assertIn(b"MACHINE NOTES", terminal.raw)
         self.assertFalse((self.target / "toolkit-setup.lock").exists())
+
+    def test_colored_diff_then_update_preserves_machine_instructions(self):
+        self.target.mkdir()
+        instructions = self.target / "APPEND_SYSTEM.md"
+        shared = (ROOT / "dotfiles" / "APPEND_SYSTEM.md").read_text()
+        edited = shared.replace("## Scope and completion", "## Locally edited shared heading", 1)
+        local = "\n\n## Machine-specific instructions\nUse pi__ask_user_question here.\n"
+        instructions.write_text("<!-- BEGIN pi-agent-setup:shared -->\n" + edited +
+                                "<!-- END pi-agent-setup:shared -->" + local)
+        terminal = self.terminal("--skip-packages", "--skip-extensions", color=True, columns=80)
+        terminal.wait_for("How should setup handle this?")
+        terminal.send(b"\x1b[B\r")
+        terminal.wait_for("Current installed APPEND_SYSTEM.md")
+        terminal.wait_for("Proposed installed APPEND_SYSTEM.md")
+        terminal.wait_for("How should setup handle this?")
+        self.assertIn(b"\x1b[31m-## Locally edited shared heading", terminal.raw)
+        self.assertIn(b"\x1b[32m+## Scope and completion", terminal.raw)
+        self.assertIn(b"\x1b[36m@@", terminal.raw)
+        terminal.send(b"\x1b[B\x1b[B\r")
+        terminal.wait_for("Apply these changes?")
+        terminal.send(b"\r")
+        self.assertEqual(terminal.finish(), 0)
+        expected = "<!-- BEGIN pi-agent-setup:shared -->\n" + shared + "<!-- END pi-agent-setup:shared -->" + local
+        self.assertEqual(instructions.read_text(), expected)
+        backups = list((self.target / "toolkit-backups").glob("*/APPEND_SYSTEM.md"))
+        self.assertEqual(len(backups), 1)
+        self.assertIn("Locally edited shared heading", backups[0].read_text())
 
     def test_delete_checklist_is_unchecked_and_removes_only_an_explicit_choice(self):
         extra = self.target / "extensions" / "extra.ts"

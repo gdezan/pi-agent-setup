@@ -47,7 +47,30 @@ Setup also offers to delete every Pi resource in `~/.pi/agent` that it does not 
 
 Entries are paths relative to the agent directory; a directory entry keeps everything beneath it. The file is optional, so a machine with nothing to protect behaves as before. Setup reports which entries it honoured, so a keep that stops working is visible rather than silent.
 
-For live editing, run `node setup.mjs --link`. This links custom resources to the checkout instead of copying them. Keep the checkout in place and reload Pi after edits.
+For live editing, run `node setup.mjs --link`. This links custom resources to the checkout instead of copying them. Keep the checkout in place and reload Pi after edits. System instructions remain a regular file in both modes; rerun setup to refresh their shared block.
+
+### Shared and machine-specific instructions
+
+Setup manages only the marked block in `<agent-dir>/APPEND_SYSTEM.md`:
+
+```markdown
+<!-- BEGIN pi-agent-setup:shared -->
+Shared instructions from dotfiles/APPEND_SYSTEM.md
+<!-- END pi-agent-setup:shared -->
+
+## Machine-specific instructions
+
+These instructions supplement the shared rules above.
+Where they conflict, follow these machine-specific rules.
+
+Your local tools, provider workarounds, and other machine-specific rules.
+```
+
+Edit shared rules in this checkout's `dotfiles/APPEND_SYSTEM.md`, without adding markers there. Put local instructions outside the installed file's markers. Setup preserves all outside text and does not treat those edits as conflicts. Edits inside the block require a decision before setup replaces them. Incomplete pairs, repeated, inline, or reversed markers stop setup until repaired.
+
+On migration, setup wraps known source-owned copies and converts its old source symlink into a regular file. An unfamiliar unmarked file requires a decision: adding the shared block keeps the original text in the machine-specific section and backs up the original file. Review that retained text for duplicate or conflicting rules; setup does not attempt to extract machine-specific instructions automatically.
+
+A symlink to any other source is refused before setup writes anything. To adopt it, replace the link with a regular copy of its contents first; setup never modifies the linked source.
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
 
@@ -82,7 +105,7 @@ Copy/link mode is remembered. Optional flags:
 - `--apply-preferences`: overwrite the shared preference keys.
 - `--skip-packages`: work only on custom resources and preferences.
 
-For local edits or uncertain matches, the wizard asks what to keep and remembers the answer. File conflicts offer a diff and backed-up replacement. Backups go under `<agent-dir>/toolkit-backups/`. Interrupted package operations resume with `--reuse-selection`; completed installs are skipped.
+For local edits or uncertain matches, the wizard asks what to keep and remembers the answer. File conflicts offer a colored current/proposed diff and backed-up replacement. For system instructions, replacement updates only the shared block, preserving machine-specific text. Use `--replace-config` to accept that update or adoption without prompting; malformed markers still require manual repair. Backups go under `<agent-dir>/toolkit-backups/`. Interrupted package operations resume with `--reuse-selection`; completed installs are skipped.
 
 Use `--dry-run` to preview without writes or downloads; wizard dependencies must already be installed. For automation, use an explicit selection or saved choices, plus `--json`. Unresolved conflicts require an explicit policy such as `--conflicts keep`; `--yes` does not resolve them. See `node setup.mjs --help`.
 

@@ -23,7 +23,7 @@ Working third-party packages, model choices, and version pins are kept.
   --conflicts keep      Preserve conflicting files/packages without prompting
   --replace-resources   Back up and replace locally changed custom resources
   --replace-legacy      Back up differing manifest-listed legacy resources and activate bundled copies
-  --replace-config      Back up and replace differing system instructions
+  --replace-config      Back up and update the shared instruction block; keep local text
   --apply-preferences   Apply shared preferences over existing values
   --dry-run             Show the plan without writes, downloads, or installs
   --non-interactive     Never prompt; saved choices or selection flags are required
@@ -38,6 +38,8 @@ differing ones require a decision. Unrelated local resources are never moved.
 The interactive cleanup checklist can permanently delete individually checked unselected packages
 and unmanaged local resources; it is unchecked by default and unavailable noninteractively.
 Kept conflict decisions are remembered until the source or destination changes.
+System instructions stay a regular file in both modes. Only the marked shared block is updated;
+text outside it stays local. Adopting unmarked instructions preserves their text after a decision.
 Inspection and verification cover this global agent directory, not project overrides.
 `;
 

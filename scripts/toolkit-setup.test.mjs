@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,12 +8,12 @@ import test from "node:test";
 import { runToolkitSetup } from "./toolkit-setup.mjs";
 import { readToolkitJson, toolkitPackageIdentity } from "./toolkit-settings.mjs";
 import { inspectToolkitInventory } from "./toolkit-inventory.mjs";
-import { toolkitPathHash } from "./toolkit-files.mjs";
+import { toolkitContentHash, toolkitPathHash } from "./toolkit-files.mjs";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 function fixture(t) {
-  const base = mkdtempSync(join(tmpdir(), "pi-toolkit-test-"));
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "pi-toolkit-test-")));
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const root = join(base, "source");
   const agentDir = join(base, "agent");
@@ -92,7 +92,8 @@ test("link and copy modes keep one package registration and never symlink settin
   const f = fixture(t);
   await f.run(["--link", "--skip-packages"]);
   assert.equal(readlinkSync(join(f.agentDir, "toolkits/pi-agent-setup")), f.root);
-  assert.equal(readlinkSync(join(f.agentDir, "APPEND_SYSTEM.md")), join(f.root, "dotfiles/APPEND_SYSTEM.md"));
+  assert.equal(lstatSync(join(f.agentDir, "APPEND_SYSTEM.md")).isSymbolicLink(), false);
+  assert.match(readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"), /<!-- BEGIN pi-agent-setup:shared -->/);
   assert.equal(lstatSync(join(f.agentDir, "settings.json")).isSymbolicLink(), false);
   await f.run();
   assert.equal(lstatSync(join(f.agentDir, "toolkits/pi-agent-setup")).isSymbolicLink(), true);
@@ -187,10 +188,90 @@ test("source-owned instruction updates are applied but edited copies are protect
   await f.run();
   f.put("dotfiles/APPEND_SYSTEM.md", "updated source\n");
   await f.run();
-  assert.equal(readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"), "updated source\n");
+  assert.match(readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"), /\nupdated source\n<!-- END pi-agent-setup:shared -->/);
   writeFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "local edit\n");
   f.put("dotfiles/APPEND_SYSTEM.md", "another source update\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
+});
+
+test("shared instruction updates preserve all outside text and ignore local-only edits", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const path = join(f.agentDir, "APPEND_SYSTEM.md");
+  const original = readFileSync(path, "utf8");
+  const prefix = "Local preface\r\n\r\n";
+  const suffix = "\r\nCursor-specific rules, with no final newline";
+  writeFileSync(path, prefix + original + suffix);
+  const before = lstatSync(path).mtimeMs;
+  assert.equal((await f.run()).status, "unchanged");
+  assert.equal(lstatSync(path).mtimeMs, before);
+  f.put("dotfiles/APPEND_SYSTEM.md", "New shared rules\n");
+  await f.run();
+  assert.equal(readFileSync(path, "utf8"), prefix + original.replace("Shared instructions", "New shared rules") + suffix);
+  assert.equal((await f.run()).status, "unchanged");
+});
+
+test("edits inside the managed instruction block require a decision and keep stays protected", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const path = join(f.agentDir, "APPEND_SYSTEM.md");
+  const edited = readFileSync(path, "utf8").replace("Shared instructions", "Edited shared rules") + "Local rules\n";
+  writeFileSync(path, edited);
+  await assert.rejects(f.run(), /Toolkit decision required/);
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
+  assert.equal((await f.run()).status, "unchanged");
+  assert.equal(readFileSync(path, "utf8"), edited);
+  await f.run(["--skip-packages", "--replace-config"]);
+  assert.equal(readFileSync(path, "utf8"), edited.replace("Edited shared rules", "Shared instructions"));
+});
+
+test("adopting unmarked instructions preserves unknown content and backs up the original", async (t) => {
+  const f = fixture(t);
+  mkdirSync(f.agentDir);
+  const path = join(f.agentDir, "APPEND_SYSTEM.md");
+  const local = "Existing rules\r\nKeep this byte-for-byte";
+  writeFileSync(path, local);
+  await assert.rejects(f.run(), /Toolkit decision required/);
+  await f.run(["--skip-packages", "--replace-config"]);
+  const result = readFileSync(path, "utf8");
+  assert.match(result, /^<!-- BEGIN pi-agent-setup:shared -->\nShared instructions\n<!-- END pi-agent-setup:shared -->/);
+  assert.ok(result.endsWith(local));
+  const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
+  assert.equal(readFileSync(join(f.agentDir, "toolkit-backups", backup, "APPEND_SYSTEM.md"), "utf8"), local);
+  assert.equal((await f.run()).status, "unchanged");
+});
+
+test("legacy owned copies and source links migrate without duplicating shared rules", async (t) => {
+  for (const mode of ["copy", "link"]) {
+    const f = fixture(t);
+    mkdirSync(f.agentDir);
+    const path = join(f.agentDir, "APPEND_SYSTEM.md");
+    if (mode === "link") symlinkSync(join(f.root, "dotfiles/APPEND_SYSTEM.md"), path);
+    else writeFileSync(path, "Old shared version\n");
+    writeJson(join(f.agentDir, "toolkit-state.json"), { version: 2, ownsPackage: false, selectedPackages: [],
+      appendSystemHash: mode === "copy" ? toolkitContentHash("Old shared version\n") : null });
+    await f.run([`--${mode}`, "--skip-packages"]);
+    assert.equal(lstatSync(path).isFile(), true);
+    const result = readFileSync(path, "utf8");
+    assert.equal(result.split("Shared instructions").length - 1, 1);
+    assert.doesNotMatch(result, /Old shared version/);
+    assert.equal(readFileSync(join(f.root, "dotfiles/APPEND_SYSTEM.md"), "utf8"), "Shared instructions\n");
+    assert.equal((await f.run()).status, "unchanged");
+  }
+});
+
+test("invalid instruction markers fail before any deployment, even with replacement requested", async (t) => {
+  const begin = "<!-- BEGIN pi-agent-setup:shared -->";
+  const end = "<!-- END pi-agent-setup:shared -->";
+  for (const content of [begin, end, `${end}\n${begin}`, `${begin}\n${begin}\n${end}`, `${begin}\nx\n${end}\n${begin}\ny\n${end}`, `inline ${begin}\nx\n${end}`]) {
+    const f = fixture(t);
+    mkdirSync(f.agentDir);
+    const path = join(f.agentDir, "APPEND_SYSTEM.md");
+    writeFileSync(path, content);
+    await assert.rejects(f.run(["--skip-packages", "--replace-config"]), /Invalid.*instruction markers/);
+    assert.equal(readFileSync(path, "utf8"), content);
+    assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  }
 });
 
 test("copy updates remove obsolete package files only after backing up the owned package", async (t) => {

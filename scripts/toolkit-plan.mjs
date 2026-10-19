@@ -1,8 +1,8 @@
-import { readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { collectToolkitFiles, toolkitContentHash, toolkitCopyMatches, toolkitLinkMatches, toolkitPathHash, toolkitPathStat } from "./toolkit-files.mjs";
 import { findToolkitPackage, mergeToolkitPreferences, readToolkitJson, registerToolkitPackage, toolkitPackageIdentity, toolkitPackageSource } from "./toolkit-settings.mjs";
 import { TOOLKIT_PACKAGE_SOURCE } from "./toolkit-inventory.mjs";
+import { planToolkitInstructions } from "./toolkit-instructions.mjs";
 
 /** Read old ownership records conservatively; v1 has no package baseline and cannot prove a safe overwrite. */
 export function readToolkitState(path) {
@@ -12,6 +12,7 @@ export function readToolkitState(path) {
       !Array.isArray(state.selectedPackages) || state.selectedPackages.some((id) => typeof id !== "string") ||
       (state.selectedExtensions !== undefined && (!Array.isArray(state.selectedExtensions) || state.selectedExtensions.some((id) => typeof id !== "string"))) ||
       (state.appendSystemHash != null && typeof state.appendSystemHash !== "string") ||
+      (state.appendSystemBlockHash != null && typeof state.appendSystemBlockHash !== "string") ||
       (state.packageHash != null && typeof state.packageHash !== "string") ||
       (state.mode !== undefined && !["copy", "link"].includes(state.mode)) ||
       (state.pendingLegacy !== undefined && (!Array.isArray(state.pendingLegacy) || state.pendingLegacy.some((path) => typeof path !== "string"))) ||
@@ -78,21 +79,6 @@ function planPackageFiles({ root, agentDir, files, state, mode, replaceResources
     message: "Custom resources", conflictMessage: "Custom resources contain local changes or have no recorded baseline." };
 }
 
-function planInstructions({ root, agentDir, state, mode, replaceConfig }) {
-  const source = join(root, "dotfiles/APPEND_SYSTEM.md");
-  const target = join(agentDir, "APPEND_SYSTEM.md");
-  const content = readFileSync(source);
-  const stat = toolkitPathStat(target);
-  const hash = stat?.isFile() ? toolkitContentHash(readFileSync(target)) : null;
-  const linked = toolkitLinkMatches(target, source);
-  const matches = mode === "link" ? linked : hash === toolkitContentHash(content);
-  const baseline = Boolean(linked || (state.appendSystemHash && state.appendSystemHash === hash));
-  if (stat && !stat.isFile() && !stat.isSymbolicLink()) throw new Error(`Invalid toolkit instruction destination: ${target}`);
-  return { id: "instructions", target, source, action: !stat ? "install" : matches ? "keep" : (baseline || replaceConfig) ? "update" : "conflict",
-    owned: Boolean(!stat || baseline || replaceConfig), content,
-    message: "System instructions", conflictMessage: "Existing system instructions differ from the shared version." };
-}
-
 function legacyResourceRoot(agentDir, resource, legacy) {
   const entry = join(agentDir, legacy);
   return resource.packageName || resource.kind === "skills" || ["index.ts", "index.js"].includes(basename(entry))
@@ -133,7 +119,7 @@ function planLegacyMigrations({ root, agentDir, manifest, inventory, options, ke
 export function planToolkitSetup({ root, agentDir, settings, state, manifest, preferences, files, inventory, selectedIds, selectedExtensions, options }) {
   const mode = options.link ? "link" : options.copy ? "copy" : state.mode ?? (toolkitLinkMatches(join(agentDir, TOOLKIT_PACKAGE_SOURCE), root) ? "link" : "copy");
   const resources = planPackageFiles({ root, agentDir, files, state, mode, replaceResources: options["replace-resources"] });
-  const instructions = planInstructions({ root, agentDir, state, mode, replaceConfig: options["replace-config"] });
+  const instructions = planToolkitInstructions({ root, agentDir, state, replaceConfig: options["replace-config"] });
   let nextSettings = mergeToolkitPreferences(settings, preferences, options["apply-preferences"]);
   if (resources.register) nextSettings = registerToolkitPackage(nextSettings, TOOLKIT_PACKAGE_SOURCE, agentDir);
   const packages = inventory.packages.filter((entry) => selectedIds.includes(entry.id)).map((entry) => {
@@ -194,6 +180,7 @@ export function planToolkitSetup({ root, agentDir, settings, state, manifest, pr
   nextSettings = reconciled.settings;
   const nextState = { version: 2, ownsPackage: resources.owned, mode,
     packageHash: state.packageHash ?? null, appendSystemHash: instructions.owned ? state.appendSystemHash ?? null : null,
+    appendSystemBlockHash: instructions.owned ? state.appendSystemBlockHash ?? null : null,
     selectedPackages: options["skip-packages"] ? state.selectedPackages ?? [] : selectedIds,
     selectedExtensions,
     pendingPackages: state.pendingPackages ?? [], pendingLegacy: [], resourceExclusions: reconciled.exclusions, keptConflicts };

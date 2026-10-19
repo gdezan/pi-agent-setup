@@ -7,11 +7,52 @@ import { summarizeToolkitPlan } from "./toolkit-plan.mjs";
 import { ToolkitCancelled } from "./toolkit-command.mjs";
 
 const clean = (value) => stripVTControlCharacters(String(value)).replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+const DIFF_MAX_LENGTH = 16000;
+const ANSI = { green: "\x1b[32m", red: "\x1b[31m", cyan: "\x1b[36m", reset: "\x1b[0m" };
+
+export function supportsToolkitColor({ input, output, options = {}, env = process.env }) {
+  const noColor = env.NO_COLOR !== undefined && env.NO_COLOR !== "";
+  return Boolean(input?.isTTY && output?.isTTY && !options["no-color"] && !options.json &&
+    !options["non-interactive"] && !noColor && env.TERM !== "dumb");
+}
+
+export function renderToolkitDiff(currentLabel, proposedLabel, currentContent, proposedContent, { color = false, maxLength = DIFF_MAX_LENGTH } = {}) {
+  const label = (value) => clean(value).replace(/[\r\n]+/g, " ");
+  const patch = clean(createTwoFilesPatch(label(currentLabel), label(proposedLabel), clean(currentContent), clean(proposedContent)));
+  const limit = Number.isSafeInteger(maxLength) && maxLength >= 0 ? maxLength : DIFF_MAX_LENGTH;
+  const lines = patch.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+  const header = lines.slice(0, 3).join("");
+  const body = lines.slice(3);
+  let visible = patch;
+  if (patch.length > limit) {
+    const budget = Math.max(0, limit - header.length);
+    let bodyLength = 0;
+    const included = [];
+    for (const line of body) {
+      if (bodyLength + line.length > budget) break;
+      included.push(line);
+      bodyLength += line.length;
+    }
+    visible = `${header}${included.join("")}`;
+  }
+  const truncated = visible.length < patch.length;
+  const text = `${visible}${truncated ? `\n[Diff truncated: showing the first ${visible.length} of ${patch.length} characters.]\n` : ""}`;
+  if (!color) return text;
+
+  return text.split(/(?<=\n)/).map((line) => {
+    const newline = line.endsWith("\n") ? "\n" : "";
+    const content = newline ? line.slice(0, -1) : line;
+    const tone = content.startsWith("@@") ? ANSI.cyan : content.startsWith("+") && !content.startsWith("+++") ? ANSI.green :
+      content.startsWith("-") && !content.startsWith("---") ? ANSI.red : undefined;
+    return tone ? `${tone}${content}${ANSI.reset}${newline}` : line;
+  }).join("");
+}
 
 /** Keep terminal rendering outside the plan/apply engine; JSON and non-TTY paths never use prompts. */
 export async function createToolkitUI({ input, output, options, signal }) {
   const ci = process.env.CI && !["0", "false"].includes(process.env.CI.toLowerCase());
   const interactive = Boolean(input.isTTY && output.isTTY && !options["non-interactive"] && !options.json && !ci && process.env.TERM !== "dumb");
+  const color = interactive && supportsToolkitColor({ input, output, options, env: process.env });
   const clack = interactive ? await import("@clack/prompts") : undefined;
   const common = { input, output, signal };
   const answer = (value) => { if (clack.isCancel(value)) throw new ToolkitCancelled(); return value; };
@@ -56,7 +97,8 @@ export async function createToolkitUI({ input, output, options, signal }) {
           options: [{ value: "keep", label: "Keep existing", hint: "Leave it unchanged and remember this choice" },
             ...(entry.target ? [{ value: "diff", label: "View differences" }] : []),
             ...(entry.retainOnly ? [{ value: "cancel", label: "Cancel and inspect manually" }] :
-              [{ value: entry.target ? "replace" : "repair", label: entry.migration ? "Move old copy to backup and activate bundled version" : entry.target ? "Back up and replace" : "Repair package" }])] }));
+              [{ value: entry.target ? "replace" : "repair", label: entry.id === "instructions" ? "Back up and update shared block" : entry.migration ? "Move old copy to backup and activate bundled version" : entry.target ? "Back up and replace" : "Repair package",
+                ...(entry.id === "instructions" ? { hint: "If no markers exist, add the block and retain existing text" } : {}) }])] }));
         if (choice === "cancel") throw new ToolkitCancelled();
         if (choice !== "diff") return choice;
         if (entry.migration) {
@@ -65,14 +107,16 @@ export async function createToolkitUI({ input, output, options, signal }) {
           if (!toolkitPathStat(old)?.isFile() || !toolkitPathStat(next)?.isFile()) {
             clack.note("Entrypoint is not a regular file. Inspect the full paths before deciding.", "Differences", common);
           } else {
-            clack.note(clean(createTwoFilesPatch(old, next, readFileSync(old, "utf8"), readFileSync(next, "utf8")).slice(0, 16000)), "Entrypoint differences (directory may contain other changes)", common);
+            clack.note(renderToolkitDiff(`Current: ${old}`, `Proposed: ${next}`, readFileSync(old, "utf8"), readFileSync(next, "utf8"), { color }),
+              "Entrypoint differences (directory may contain other changes)", common);
           }
           continue;
         }
         if (entry.id === "instructions") {
           const stat = toolkitPathStat(entry.target);
-          if (!stat?.isFile()) { clack.note("Existing path is a link. Replacement backs up the link, not its target.", "Differences", common); continue; }
-          clack.note(clean(createTwoFilesPatch(entry.target, entry.source, readFileSync(entry.target, "utf8"), entry.content.toString()).slice(0, 16000)), "Differences", common);
+          if (!stat?.isFile()) { clack.note("Existing path is not a regular file. Setup cannot safely update it; inspect it manually.", "Differences", common); continue; }
+          clack.note(renderToolkitDiff("Current installed APPEND_SYSTEM.md", "Proposed installed APPEND_SYSTEM.md",
+            readFileSync(entry.target, "utf8"), entry.content, { color }), "Differences", common);
         } else {
           const changes = [...files].filter(([path, file]) => {
             const target = join(entry.target, path);
@@ -84,7 +128,8 @@ export async function createToolkitUI({ input, output, options, signal }) {
           if (path === "back") continue;
           const target = join(entry.target, path);
           const old = toolkitPathStat(target)?.isFile() ? readFileSync(target, "utf8") : "";
-          clack.note(clean(createTwoFilesPatch(target, join(root, path), old, files.get(path).content.toString()).slice(0, 16000)), "Differences", common);
+          clack.note(renderToolkitDiff(`Current: ${target}`, `Proposed: ${join(root, path)}`, old, files.get(path).content, { color }),
+            "Differences", common);
         }
       }
     },

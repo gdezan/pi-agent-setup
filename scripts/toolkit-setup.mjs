@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { collectToolkitFiles, resolveToolkitAgentDir, assertToolkitWritePaths, toolkitContentHash, toolkitCopyMatches,
+import { collectToolkitFiles, resolveToolkitAgentDir, assertToolkitWritePaths, toolkitCopyMatches,
   toolkitLinkMatches, toolkitPathHash, deployToolkitPackage, archiveToolkitLegacyPath, replaceToolkitPath, writeToolkitJson } from "./toolkit-files.mjs";
 import { readToolkitJson, validateToolkitManifest } from "./toolkit-settings.mjs";
 import { TOOLKIT_PACKAGE_SOURCE, inspectToolkitInventory, validateToolkitResources, verifyToolkitInventory } from "./toolkit-inventory.mjs";
@@ -81,7 +81,10 @@ function stateAfterDeployment(plan, files) {
     toolkitLinkMatches(plan.resources.target, plan.root) : toolkitCopyMatches(plan.resources.target, files)))) {
     next.packageHash = toolkitPathHash(plan.resources.target);
   }
-  if (plan.instructions.owned) next.appendSystemHash = toolkitContentHash(plan.instructions.content);
+  if (plan.instructions.owned) {
+    next.appendSystemHash = null;
+    next.appendSystemBlockHash = plan.instructions.blockHash;
+  }
   return next;
 }
 
@@ -216,8 +219,7 @@ export async function runToolkitSetup({ root, argv, input = process.stdin, outpu
     applied = true;
     if (plan.resources.action !== "keep") deployToolkitPackage({ root, target: plan.resources.target, files, link: plan.mode === "link", backupRoot });
     if (plan.instructions.action !== "keep") replaceToolkitPath({ target: plan.instructions.target, backupRoot, backupName: "APPEND_SYSTEM.md", create(staging) {
-      if (plan.mode === "link") symlinkSync(plan.instructions.source, staging, "file");
-      else writeFileSync(staging, plan.instructions.content, { mode: 0o600 });
+      writeFileSync(staging, plan.instructions.content, { mode: 0o600 });
     } });
     const pendingLegacy = plan.migrations.filter((entry) => entry.action === "migrate").map((entry) => entry.legacy);
     // Keep exclusion ownership from the settings still on disk until those settings are replaced.
