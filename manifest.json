@@ -7,8 +7,7 @@
     { "id": "session-autoname", "kind": "extensions", "path": "dotfiles/extensions/session-autoname.ts", "legacy": ["extensions/session-autoname.ts"] },
     { "id": "cache-observer", "kind": "extensions", "path": "dotfiles/extensions/pi-cache-observer/index.ts", "legacy": ["extensions/pi-cache-observer/index.ts"] },
     { "id": "ask-user-question", "kind": "extensions", "path": "dotfiles/local-packages/ask-user-question/index.ts", "legacy": ["local-packages/ask-user-question/index.ts"], "packageName": "@local/ask-user-question" },
-    { "id": "impeccable", "kind": "skills", "path": "dotfiles/skills/impeccable/SKILL.md", "legacy": ["skills/impeccable/SKILL.md"] },
-    { "id": "analyze-sessions", "kind": "skills", "path": "dotfiles/skills/analyze-sessions/SKILL.md", "legacy": ["skills/analyze-sessions/SKILL.md"] }
+    { "id": "impeccable", "kind": "skills", "path": "dotfiles/skills/impeccable/SKILL.md", "legacy": ["skills/impeccable/SKILL.md"] }
   ],
   "packages": [
     { "id": "workflow", "source": "git:git@github.com:gdezan/pi-workflow", "description": "Personal workflow tools; requires GitHub SSH access" },

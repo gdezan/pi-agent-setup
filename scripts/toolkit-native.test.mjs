@@ -35,9 +35,8 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.length, 6);
-      for (const name of ['impeccable', 'analyze-sessions']) {
-        assert.equal(loader.getSkills().skills.filter((skill) => skill.name === name).length, 1);
-      }
+      assert.equal(loader.getSkills().skills.filter((skill) => skill.name === 'impeccable').length, 1);
+      assert.equal(loader.getSkills().skills.some((skill) => skill.name === 'analyze-sessions'), false);
     `], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     if (legacy) {
