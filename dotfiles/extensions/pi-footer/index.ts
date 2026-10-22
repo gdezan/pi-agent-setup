@@ -66,7 +66,6 @@ export default function (pi: ExtensionAPI) {
 		];
 
 		pathSection.setCwd(ctx.cwd);
-		pathSection.setInvalidate(() => Footer.invalidate());
 
 		ctx.ui.setFooter((tui: TUI, theme: Theme, footerData: ReadonlyFooterDataProvider) => {
 			const unsubscribe = Footer.onInvalidate(() => tui.requestRender());
