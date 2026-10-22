@@ -14,10 +14,17 @@
  *
  * `/autoname model provider/modelId [thinkingLevel]` validates and saves that
  * model. Manual names remain available through Pi's built-in `/name`.
+ *
+ * Inside Herdr, both autoname paths also rename the Herdr agent occupying the
+ * pane, so the agents sidebar shows the generated title instead of the bare
+ * agent kind. Herdr names are stricter than session titles, so a slug is
+ * derived; a taken name is retried with a numeric suffix.
  */
 
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
 import {
 	BorderedLoader,
@@ -39,6 +46,12 @@ const SESSION_NAMING_OMISSION_MARKER = "\n\n[earlier user context omitted]\n\n";
 const SESSION_AUTONAME_SETTINGS_KEY = "sessionAutoname";
 const SESSION_AUTONAME_SETTINGS_PATH = join(getAgentDir(), "settings.json");
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+// Herdr agent names must match /^[a-z][a-z0-9_-]{0,31}$/ and are unique among live agents.
+const HERDR_AGENT_NAME_MAX_CHARS = 32;
+const HERDR_AGENT_NAME_ATTEMPTS = 4;
+const HERDR_AGENT_NAME_MIN_WORD_CHARS = 8;
+const HERDR_RENAME_TIMEOUT_MS = 10_000;
 
 const SESSION_NAMING_SYSTEM_PROMPT = [
 	"You create concise display names for coding-agent sessions.",
@@ -425,6 +438,146 @@ function writeSessionAutonameSettings(patch: Record<string, unknown>): void {
 	renameSync(temporaryPath, SESSION_AUTONAME_SETTINGS_PATH);
 }
 
+export type HerdrAgentEnv = {
+	HERDR_ENV?: string | undefined;
+	HERDR_PANE_ID?: string | undefined;
+	HERDR_BIN_PATH?: string | undefined;
+};
+
+export type HerdrAgentTarget = { bin: string; paneId: string };
+
+export type HerdrCommandResult = { ok: boolean; code?: string; message?: string };
+
+export type HerdrCommandRunner = (bin: string, args: readonly string[]) => Promise<HerdrCommandResult>;
+
+export type HerdrRenameOutcome = { kind: "renamed"; name: string } | { kind: "failed"; message: string };
+
+/** Resolves the Herdr agent target for this Pi process, or undefined outside Herdr. */
+export function resolveHerdrAgentTarget(env: HerdrAgentEnv): HerdrAgentTarget | undefined {
+	if (env.HERDR_ENV !== "1") return undefined;
+
+	const paneId = env.HERDR_PANE_ID?.trim();
+	if (!paneId) return undefined;
+
+	return { bin: env.HERDR_BIN_PATH?.trim() || "herdr", paneId };
+}
+
+/** Derives a Herdr agent name from a session title, or undefined when nothing nameable remains. */
+export function herdrAgentNameFromTitle(title: string): string | undefined {
+	const ascii = title.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase();
+	let name = ascii.replace(/[^a-z0-9]+/gu, "-").replace(/^-+|-+$/gu, "");
+	if (!name) return undefined;
+
+	if (!/^[a-z]/u.test(name)) name = `session-${name}`;
+	return truncateHerdrAgentName(name) || undefined;
+}
+
+function truncateHerdrAgentName(name: string): string {
+	if (name.length <= HERDR_AGENT_NAME_MAX_CHARS) return name;
+
+	const hardCut = name.slice(0, HERDR_AGENT_NAME_MAX_CHARS);
+	const wordCut = hardCut.lastIndexOf("-");
+	const truncated = wordCut >= HERDR_AGENT_NAME_MIN_WORD_CHARS ? hardCut.slice(0, wordCut) : hardCut;
+	return truncated.replace(/[-_]+$/u, "");
+}
+
+/** Builds the name followed by numeric-suffix fallbacks for `agent_name_taken` retries. */
+export function herdrAgentNameCandidates(name: string): string[] {
+	const candidates = [name];
+
+	for (let suffix = 2; candidates.length < HERDR_AGENT_NAME_ATTEMPTS; suffix++) {
+		const tail = `-${suffix}`;
+		const base = name.slice(0, HERDR_AGENT_NAME_MAX_CHARS - tail.length).replace(/[-_]+$/u, "");
+		candidates.push(`${base}${tail}`);
+	}
+
+	return candidates;
+}
+
+/** Reads the structured failure Herdr prints for a rejected command, falling back to empty fields. */
+export function parseHerdrFailure(...outputs: readonly (string | undefined)[]): { code?: string; message?: string } {
+	for (const output of outputs) {
+		const failure = parseHerdrFailureOutput(output);
+		if (failure.code || failure.message) return failure;
+	}
+
+	return {};
+}
+
+function parseHerdrFailureOutput(output: string | undefined): { code?: string; message?: string } {
+	for (const line of (output ?? "").trim().split("\n").reverse()) {
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(line);
+		} catch {
+			continue;
+		}
+
+		const error = (parsed as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+		if (!error) continue;
+
+		return {
+			code: typeof error.code === "string" ? error.code : undefined,
+			message: typeof error.message === "string" ? error.message : undefined,
+		};
+	}
+
+	return {};
+}
+
+const runFile = promisify(execFile);
+
+async function runHerdrCommand(bin: string, args: readonly string[]): Promise<HerdrCommandResult> {
+	try {
+		await runFile(bin, [...args], { timeout: HERDR_RENAME_TIMEOUT_MS });
+		return { ok: true };
+	} catch (error: unknown) {
+		const streams = error as { stdout?: unknown; stderr?: unknown } | null;
+		const failure = parseHerdrFailure(
+			typeof streams?.stderr === "string" ? streams.stderr : undefined,
+			typeof streams?.stdout === "string" ? streams.stdout : undefined,
+		);
+		return { ok: false, code: failure.code, message: failure.message ?? errorText(error) };
+	}
+}
+
+/** Renames the Herdr agent occupying this pane, retrying a taken name with a suffix. */
+export async function renameHerdrAgent(
+	target: HerdrAgentTarget,
+	title: string,
+	run: HerdrCommandRunner,
+): Promise<HerdrRenameOutcome> {
+	const name = herdrAgentNameFromTitle(title);
+	if (!name) return { kind: "failed", message: "the title has no Herdr-compatible agent name" };
+
+	let message = "agent rename failed";
+	for (const candidate of herdrAgentNameCandidates(name)) {
+		const result = await run(target.bin, ["agent", "rename", target.paneId, candidate]);
+		if (result.ok) return { kind: "renamed", name: candidate };
+
+		message = result.message ?? message;
+		if (result.code !== "agent_name_taken") break;
+	}
+
+	return { kind: "failed", message };
+}
+
+/** Applies a session title to the Herdr agent for this pane; undefined outside Herdr. */
+export async function syncHerdrAgentName(
+	title: string,
+	run: HerdrCommandRunner = runHerdrCommand,
+	env: HerdrAgentEnv = process.env,
+): Promise<HerdrRenameOutcome | undefined> {
+	const target = resolveHerdrAgentTarget(env);
+	if (!target) return undefined;
+
+	try {
+		return await renameHerdrAgent(target, title, run);
+	} catch (error: unknown) {
+		return { kind: "failed", message: errorText(error) };
+	}
+}
+
 async function runBackgroundSessionNaming(
 	pi: ExtensionAPI,
 	ctx: ExtensionContext,
@@ -450,6 +603,7 @@ async function runBackgroundSessionNaming(
 		if (pi.getSessionName()) return;
 
 		pi.setSessionName(title);
+		void syncHerdrAgentName(title);
 	} catch {
 		// Background naming never interrupts the session, so failures stay silent.
 	}
@@ -518,7 +672,18 @@ async function nameCurrentSession(
 		}
 
 		pi.setSessionName(title);
-		ctx.ui.notify(`Session renamed to “${title}” · ${usage}`, "info");
+
+		const herdr = await syncHerdrAgentName(title);
+		const herdrNote =
+			herdr?.kind === "renamed"
+				? `Herdr agent ${herdr.name}`
+				: herdr?.kind === "failed"
+					? `Herdr rename failed: ${herdr.message}`
+					: undefined;
+		ctx.ui.notify(
+			`Session renamed to “${title}”${herdrNote ? ` · ${herdrNote}` : ""} · ${usage}`,
+			herdr?.kind === "failed" ? "warning" : "info",
+		);
 	} catch (error: unknown) {
 		ctx.ui.notify(`Session autoname failed: ${errorText(error)}; existing name preserved`, "error");
 	}
