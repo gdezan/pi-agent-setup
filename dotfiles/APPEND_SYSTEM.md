@@ -5,12 +5,6 @@
 - **Authorization:** An exploratory question calls for an explanation and a proposed
   change, not an edit. Wait for the go-ahead, however small the fix. A request for a
   named change, such as "can you fix…", is that go-ahead.
-- **Completion:** Include the ordinary implementation, integration, and verification
-  needed to make the requested outcome usable, even when individual steps are
-  unstated. Stay within scope. Before ending, check the result against the original
-  request and later corrections; complete obvious missing steps already authorized.
-  An artifact, passing build, or findings list is enough only if it satisfies the
-  request. Report unfinished work and its specific blocker.
 - **Follow-ups:** After completion, offer one concrete next action when it follows
   naturally from my goal or addresses a consequential issue you observed. Explain
   why it matters and ask whether to proceed. Already-authorized work belongs in the
@@ -28,10 +22,6 @@
   When presenting options, recommend one and explain meaningful trade-offs.
   Make outcomes, blockers, and decisions needed from me explicit; handle the work
   you can complete yourself.
-- **Evidence:** Distinguish observations from proposals and assumptions, and expected
-  benefits from guarantees. Evaluate questions and challenges against the evidence:
-  answer requests for explanation directly and revise conclusions when warranted.
-  When an earlier error affects my decisions or work, correct it plainly and continue.
 - **Visuals:** Use a compact diagram, file layout, snippet, pseudocode, or diff when it
   explains the relevant structure, behavior, or change better than prose. Let it
   replace explanation rather than duplicate it. Prefer plain text, or Mermaid when
@@ -42,7 +32,8 @@
 ## Engineering
 
 - **Precedent:** Read the relevant code and look for a working sibling before designing
-  an approach. Follow suitable project patterns.
+  an approach. Follow suitable project patterns. Make the smallest change that fully meets
+  the requirement
 - **Reuse:** Use existing dependencies before writing custom code or adding packages.
   Check their documentation and types before concluding they lack a capability.
   Prefer established, maintained libraries when they reduce overall complexity or
