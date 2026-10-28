@@ -2,14 +2,14 @@
 
 My [Pi](https://pi.dev) extensions, skills, and preferences, ready to install on another machine. Choose packages during setup; model choices, credentials, and session history stay local.
 
-Includes a custom footer, model tiers, usage and cache displays, automatic session naming, questionnaire and todo tools, plus Impeccable and session-analysis skills.
+Includes a custom footer, model tiers, usage and cache displays, automatic session naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, plus Impeccable and session-analysis skills.
 
 ## Install
 
-Requires Git and Node.js **22.19+**. Tested with Pi **0.85.1** on Linux.
+Requires Git and Node.js **22.19+**. Tested with Pi **1.4.0** on Linux.
 
 ```sh
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.4.0
 git clone git@github.com:gdezan/pi-agent-setup.git
 cd pi-agent-setup
 node setup.mjs
@@ -74,6 +74,44 @@ A symlink to any other source is refused before setup writes anything. To adopt 
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
 
+### Utility model and next-prompt suggestions
+
+AutoName and next-prompt share a model separate from your conversation model and model tiers. The default is `openai/gpt-6-luna` with low thinking. Pi **1.4.0+** is required for the provider-neutral nested requests.
+
+For an existing installation, close Pi, rerun `node setup.mjs`, and select `next-prompt` in the extension checklist. The shared utility-model code is imported by both features; it is not a separate extension to enable. Reusing the saved selection alone does not enable newly added extensions.
+
+```text
+/autoname model                            Show the shared model and credential availability
+/autoname model openai/gpt-6-luna low       Save the model used by both features
+/autoname                                   Generate a session title now
+/next-prompt                                Show suggestion status, latency, tokens, and cost
+/next-prompt off                            Disable automatic suggestions
+/next-prompt on                             Enable automatic suggestions
+```
+
+Suggestions appear as dim text in an empty editor after a successful reply fully settles. **Tab or Right Arrow** copies the suggestion into the editor without sending it. Edit it or press Enter to send. Typing or Escape dismisses it. Pending suggestions are cancelled when you type, navigate branches, or start another run. Existing model-tier shortcuts remain available.
+
+Configure both features in `<agent-dir>/settings.json`:
+
+```json
+{
+  "utilityModel": {
+    "model": "openai/gpt-6-luna",
+    "thinkingLevel": "low"
+  },
+  "sessionAutoname": { "enabled": true },
+  "nextPrompt": { "enabled": true }
+}
+```
+
+Existing `sessionAutoname.model` and `sessionAutoname.thinkingLevel` remain readable fallbacks for missing shared fields. Startup does not rewrite them. Saving with `/autoname model ...` consolidates them into `utilityModel` while preserving feature switches and unrelated settings. This existing AutoName command now changes the model for **both features**. Commands save global settings; trusted project `.pi/settings.json` fields override them and are reported when they mask a saved choice. Changes apply to subsequent utility requests without reloading.
+
+Neither feature silently falls back to your conversation model when the utility model or credentials are unavailable. Automatic work skips; manual naming reports the problem. This changes AutoName's previous fallback behavior. Configure the selected provider through Pi's normal authentication flow.
+
+Next-prompt sends text from at most the last three user/assistant exchanges, capped at 12,000 Unicode code points after serialization. It excludes system instructions, tool output, images, and hidden reasoning. Requests use a 512-token output budget including reasoning, a 10-second timeout, and no retries. No obvious next step can mean no suggestion. AutoName retains its separate user-text excerpt and naming limits.
+
+`/next-prompt` reports the last completed suggestion request in the current session, including provider-reported output tokens (which include reasoning) and estimated token cost. It does not add this background usage to Pi's conversation totals or represent subscription billing. Suggestion quality and actual provider latency depend on your selected model; the automated TUI check uses a local fixture, not a paid model.
+
 ### OpenAI shared-plan usage
 
 With an `openai/*` model selected and `/login openai` configured for ChatGPT, the footer and `/usage` show only shared-plan quota windows and reset countdowns. App-specific usage is not displayed.
@@ -125,6 +163,7 @@ npm test
 npm run test:resources
 npm run test:skills     # Python 3
 npm run test:wizard     # Python 3, Unix pseudo-terminal
+npm run test:utility-tui # Python 3 and tmux; isolated Pi, local fixture, no API calls
 ```
 
 Inspired by [pi-agent-toolkit](https://github.com/danchamorro/pi-agent-toolkit).

@@ -4,6 +4,7 @@
     { "id": "footer", "kind": "extensions", "path": "dotfiles/extensions/pi-footer/index.ts", "legacy": ["extensions/pi-footer/index.ts"] },
     { "id": "model-tiers", "kind": "extensions", "path": "dotfiles/extensions/model-tiers.ts", "legacy": ["extensions/model-tiers.ts"] },
     { "id": "provider-usage", "kind": "extensions", "path": "dotfiles/extensions/provider-usage.ts", "legacy": ["extensions/provider-usage.ts"] },
+    { "id": "next-prompt", "kind": "extensions", "path": "dotfiles/extensions/next-prompt/index.ts", "legacy": [] },
     { "id": "session-autoname", "kind": "extensions", "path": "dotfiles/extensions/session-autoname.ts", "legacy": ["extensions/session-autoname.ts"] },
     { "id": "cache-observer", "kind": "extensions", "path": "dotfiles/extensions/pi-cache-observer/index.ts", "legacy": ["extensions/pi-cache-observer/index.ts"] },
     { "id": "ask-user-question", "kind": "extensions", "path": "dotfiles/local-packages/ask-user-question/index.ts", "legacy": ["local-packages/ask-user-question/index.ts"], "packageName": "@local/ask-user-question" },

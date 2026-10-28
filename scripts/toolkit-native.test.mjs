@@ -34,7 +34,14 @@ for (const legacy of [false, true]) {
       await loader.reload();
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
-      assert.equal(loader.getExtensions().extensions.length, 6);
+      assert.equal(loader.getExtensions().extensions.some((extension) =>
+        extension.resolvedPath.includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
+      for (const suffix of ['pi-footer/index.ts', 'model-tiers.ts', 'provider-usage.ts',
+        'session-autoname.ts', 'pi-cache-observer/index.ts',
+        'ask-user-question/index.ts', 'next-prompt/index.ts']) {
+        assert.equal(loader.getExtensions().extensions.filter((extension) =>
+          extension.resolvedPath.endsWith('/' + suffix)).length, 1, suffix);
+      }
       assert.equal(loader.getSkills().skills.filter((skill) => skill.name === 'impeccable').length, 1);
       assert.equal(loader.getSkills().skills.some((skill) => skill.name === 'analyze-sessions'), false);
     `], { env, encoding: "utf8" });
