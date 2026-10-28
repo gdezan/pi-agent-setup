@@ -76,7 +76,7 @@ test("normalizes a title to the display-name constraints", () => {
 	assert.equal(normalizeSessionNamingTitle("**Fix auth flow**\nExtra explanation"), "Fix auth flow");
 	assert.equal(
 		normalizeSessionNamingTitle("1. Add support for a very long session naming title that should be shortened"),
-		"Add support for a very long session",
+		"Add support for a very",
 	);
 	assert.equal(normalizeSessionNamingTitle("\n```\nRename sessions\n```"), "Rename sessions");
 	assert.equal(normalizeSessionNamingTitle("!!!"), undefined);
