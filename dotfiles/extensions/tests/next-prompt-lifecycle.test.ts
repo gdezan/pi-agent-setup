@@ -86,7 +86,7 @@ function nextPromptHarness() {
 	};
 }
 
-test("settled reply shows a bounded ghost, preserves tier shortcuts, and accepts without sending", async () => {
+test("settled reply shows a bounded ghost, preserves model-cycle shortcuts, and accepts without sending", async () => {
 	const h = nextPromptHarness();
 	try {
 		h.emit("agent_end");

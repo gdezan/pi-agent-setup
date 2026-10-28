@@ -1,4 +1,4 @@
-"""Run with Python 3 and tmux after npm install. Uses a local, non-network provider."""
+"""Run after npm install and pi install npm:pi-model-pick. Uses a local, non-network provider."""
 import json
 import os
 from pathlib import Path
@@ -11,6 +11,10 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SUGGESTION = "Yes, implement the fix"
+MODEL_PICK = Path(os.environ.get("PI_MODEL_PICK_EXTENSION", str(
+    Path(os.environ.get("PI_CODING_AGENT_DIR", str(Path.home() / ".pi/agent")))
+    / "npm/node_modules/pi-model-pick/extensions/model-pick.ts"
+)))
 
 
 @unittest.skipUnless(shutil.which("tmux"), "tmux is required for real TUI verification")
@@ -36,11 +40,12 @@ class UtilityModelTuiTest(unittest.TestCase):
             "quietStartup": True, "theme": theme, "tuiMode": mode,
             "enableInstallTelemetry": False, "enableAnalytics": False,
         }))
-        (agent / "model-tiers.json").write_text(json.dumps({"roles": [
-            {"id": "fast", "label": "Fast", "provider": "utility-test", "model": "conversation", "thinkingLevel": "off"},
-            {"id": "daily", "label": "Daily", "provider": "utility-test", "model": "alternate", "thinkingLevel": "off"},
-            {"id": "smart", "label": "Smart", "provider": "utility-test", "model": "utility", "thinkingLevel": "low"},
-        ]}))
+        (agent / "keybindings.json").write_text(json.dumps({"app.model.cycleBackward": "alt+p"}))
+        self.assertTrue(MODEL_PICK.is_file(), "Install pi-model-pick or set PI_MODEL_PICK_EXTENSION to its extension file")
+        picker_state = agent / "model-picker-state.json"
+        picker_state.write_text(json.dumps({"favorites": [
+            "utility-test/conversation", "missing/model", "utility-test/alternate",
+        ], "recents": []}))
         log = base / "requests.jsonl"
         env = {key: value for key, value in os.environ.items() if not key.startswith("HERDR_")}
         env.update({"HOME": str(home), "PI_CODING_AGENT_DIR": str(agent), "PI_CODING_AGENT_SESSION_DIR": str(agent / "sessions"),
@@ -50,8 +55,9 @@ class UtilityModelTuiTest(unittest.TestCase):
         argv = ["node", str(ROOT / "node_modules/@earendil-works/pi-coding-agent/dist/cli.js"),
                 "--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes",
                 "--offline", "--no-approve", "--no-session", "--provider", "utility-test", "--model", "conversation", "--thinking", "off"]
-        for path in ["tests/fixtures/utility-model-provider.ts", "pi-footer/index.ts", "model-tiers.ts", "session-autoname.ts", "next-prompt/index.ts"]:
+        for path in ["tests/fixtures/utility-model-provider.ts", "pi-footer/index.ts", "favorites-cycle.ts", "session-autoname.ts", "next-prompt/index.ts"]:
             argv += ["-e", str(ROOT / "dotfiles/extensions" / path)]
+        argv += ["-e", str(MODEL_PICK)]
         self.tmux("new-session", "-d", "-s", "check", "-x", "100", "-y", "32", "-c", str(project), "exec " + shlex.join(argv))
         self.tmux("set-option", "-g", "extended-keys", "on")
         try:
@@ -87,10 +93,50 @@ class UtilityModelTuiTest(unittest.TestCase):
             self.assertIn("manual input", self.capture())
             self.assertNotIn(SUGGESTION, self.capture())
             self.tmux("send-keys", "C-u", "C-p")
-            self.wait_for(lambda: "alternate (utility-test)" in self.capture(), "model-tier shortcut")
+            self.wait_for(lambda: "alternate (utility-test)" in self.capture(), "favorite shortcut skips unavailable models")
+            self.tmux("send-keys", "C-p")
+            self.wait_for(lambda: "conversation (utility-test)" in self.capture(), "favorite cycle wraps")
+            self.tmux("send-keys", "C-p", "C-p", "C-p")
+            self.wait_for(lambda: "alternate (utility-test)" in self.capture(), "rapid favorite cycling is serialized")
+            self.tmux("send-keys", "M-p")
+            self.wait_for(lambda: "conversation (utility-test)" in self.capture(), "remapped backward favorite cycle")
+            self.tmux("send-keys", "C-p")
+            self.wait_for(lambda: "alternate (utility-test)" in self.capture(), "forward cycle after backward cycling")
+            self.send("/fav")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "utility-test/alternate" not in json.loads(picker_state.read_text())["favorites"], "unfavorite current model")
+            self.tmux("send-keys", "C-p")
+            self.wait_for(lambda: "conversation (utility-test)" in self.capture(), "cycle reads changed favorites outside the current model")
+            self.send("/fav")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "utility-test/conversation" not in json.loads(picker_state.read_text())["favorites"], "remove last available favorite")
+            self.tmux("send-keys", "C-p")
+            self.wait_for(lambda: "No available favorites" in self.capture(), "empty favorites warning")
+            self.assertIn("conversation (utility-test)", self.capture())
+            self.send("/fav")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "utility-test/conversation" in json.loads(picker_state.read_text())["favorites"], "restore favorite")
+            self.send("/reload")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "Reloaded" in self.capture(), "reload extensions")
+            self.send("/pick")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "Select Model" in self.capture(), "favorites-first picker after reload")
+            self.save_capture(base, "favorites")
+            self.send("alternate")
+            self.wait_for(lambda: "── Recent ──" in self.capture() and "── Favorites ──" not in self.capture(), "picker search")
+            self.save_capture(base, "picker")
+            self.tmux("send-keys", "Enter")
+            self.wait_for(lambda: "alternate (utility-test)" in self.capture(), "picker selection")
+            self.tmux("send-keys", "C-p")
+            self.wait_for(lambda: "conversation (utility-test)" in self.capture(), "cycle resynchronizes after picker selection")
+            self.tmux("send-keys", "-l", "\x1b[77;6u")
+            self.wait_for(lambda: "Select Model" in self.capture(), "Ctrl+Shift+M picker shortcut")
+            self.tmux("send-keys", "Escape")
+            self.wait_for(lambda: "Select Model" not in self.capture(), "picker cancel")
             self.send("Show the final suggestion")
             self.tmux("send-keys", "Enter")
-            self.wait_for(lambda: SUGGESTION in self.capture(), "suggestion after tier switching")
+            self.wait_for(lambda: SUGGESTION in self.capture(), "suggestion after favorite switching")
             self.tmux("resize-window", "-x", "44", "-y", "26")
             time.sleep(0.2)
             self.save_capture(base, "narrow")
@@ -131,8 +177,11 @@ class UtilityModelTuiTest(unittest.TestCase):
     def wait_for(self, predicate, description):
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if predicate():
-                return
+            try:
+                if predicate():
+                    return
+            except json.JSONDecodeError:
+                pass
             time.sleep(0.05)
         self.fail(f"Timed out waiting for {description}\n{self.capture()}")
 

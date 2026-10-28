@@ -29,7 +29,7 @@
   "pi": {
     "extensions": [
       "./dotfiles/extensions/pi-footer/index.ts",
-      "./dotfiles/extensions/model-tiers.ts",
+      "./dotfiles/extensions/favorites-cycle.ts",
       "./dotfiles/extensions/provider-usage.ts",
       "./dotfiles/extensions/session-autoname.ts",
       "./dotfiles/extensions/pi-cache-observer/index.ts",

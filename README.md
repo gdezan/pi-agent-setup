@@ -2,7 +2,7 @@
 
 My [Pi](https://pi.dev) extensions, skills, and preferences, ready to install on another machine. Choose packages during setup; model choices, credentials, and session history stay local.
 
-Includes a custom footer, model tiers, usage and cache displays, automatic session naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, plus Impeccable and session-analysis skills.
+Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, plus Impeccable and session-analysis skills.
 
 ## Install
 
@@ -74,9 +74,17 @@ A symlink to any other source is refused before setup writes anything. To adopt 
 
 External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
 
+### Favorite models
+
+Select the **model-pick** package and **favorites-cycle** extension during setup. `/pick` or **Ctrl+Shift+M** opens the searchable picker with favorites first, then recents and other available models. `/fav` adds or removes the current model from favorites.
+
+**Ctrl+P** cycles forward through available favorites in their saved order. The configured backward-cycle shortcut (**Alt+P** on Windows/WSL, **Ctrl+Shift+P** elsewhere) cycles backward. These use Pi's `app.model.cycleForward` and `app.model.cycleBackward` keybindings. Changes made with `/fav` apply to the next keypress; unavailable models are skipped. If no favorites are available, cycling shows a warning instead of switching to a non-favorite.
+
+Favorites live in `<agent-dir>/model-picker-state.json`, managed by `pi-model-pick`. The local cycling extension only reads that file. Favorites store model identities, not per-model thinking levels or tier labels. The former model-tier commands and badge have been removed.
+
 ### Utility model and next-prompt suggestions
 
-AutoName and next-prompt share a model separate from your conversation model and model tiers. The default is `openai/gpt-6-luna` with low thinking. Pi **1.4.0+** is required for the provider-neutral nested requests.
+AutoName and next-prompt share a model separate from your conversation model and favorites. The default is `openai/gpt-6-luna` with low thinking. Pi **1.4.0+** is required for the provider-neutral nested requests.
 
 For an existing installation, close Pi, rerun `node setup.mjs`, and select `next-prompt` in the extension checklist. The shared utility-model code is imported by both features; it is not a separate extension to enable. Reusing the saved selection alone does not enable newly added extensions.
 
@@ -89,7 +97,7 @@ For an existing installation, close Pi, rerun `node setup.mjs`, and select `next
 /next-prompt on                             Enable automatic suggestions
 ```
 
-Suggestions appear as dim text in an empty editor after a successful reply fully settles. **Tab or Right Arrow** copies the suggestion into the editor without sending it. Edit it or press Enter to send. Typing or Escape dismisses it. Pending suggestions are cancelled when you type, navigate branches, or start another run. Existing model-tier shortcuts remain available.
+Suggestions appear as dim text in an empty editor after a successful reply fully settles. **Tab or Right Arrow** copies the suggestion into the editor without sending it. Edit it or press Enter to send. Typing or Escape dismisses it. Pending suggestions are cancelled when you type, navigate branches, or start another run. Favorite-model cycling remains available.
 
 Configure both features in `<agent-dir>/settings.json`:
 
@@ -163,6 +171,7 @@ npm test
 npm run test:resources
 npm run test:skills     # Python 3
 npm run test:wizard     # Python 3, Unix pseudo-terminal
+pi install npm:pi-model-pick # Required for the TUI check, or set PI_MODEL_PICK_EXTENSION
 npm run test:utility-tui # Python 3 and tmux; isolated Pi, local fixture, no API calls
 ```
 

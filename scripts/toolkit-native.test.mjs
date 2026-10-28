@@ -20,7 +20,7 @@ for (const legacy of [false, true]) {
       for (const kind of ["extensions", "skills", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
       writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultModel: "keep-local-model", theme: "light",
         packages: ["local-packages/ask-user-question",
-          { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/model-tiers.ts"] }] }));
+          { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/favorites-cycle.ts"] }] }));
     }
     const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"),
       PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"), PI_OFFLINE: "1", PI_TELEMETRY: "0" };
@@ -36,7 +36,7 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.some((extension) =>
         extension.resolvedPath.includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
-      for (const suffix of ['pi-footer/index.ts', 'model-tiers.ts', 'provider-usage.ts',
+      for (const suffix of ['pi-footer/index.ts', 'favorites-cycle.ts', 'provider-usage.ts',
         'session-autoname.ts', 'pi-cache-observer/index.ts',
         'ask-user-question/index.ts', 'next-prompt/index.ts']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
