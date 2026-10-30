@@ -10,6 +10,7 @@ import {
 } from "./ask-user-extraction.js";
 import { buildAnswerMessage, buildAskUserToolResult } from "./ask-user-response.js";
 import { AskUserQuestionParamsSchema } from "./ask-user-schema.js";
+import { questionStatusReport } from "./ask-user-status.js";
 import type {
 	AskQuestionnaire,
 	AskQuestionnaireDetails,
@@ -134,13 +135,13 @@ async function collectQuestionnaire(
 	questionnaire: AskQuestionnaire,
 ): Promise<{ kind: "result"; result: QuestionnaireRunResult } | { kind: "error"; error: string; message: string }> {
 	if (ctx.mode === "rpc" && hasAskUserDialogUI(ctx.ui)) {
-		return withHerdrBlocked(pi, "Waiting for your answer", async () => ({
+		return withHerdrBlocked(pi, ctx, "Waiting for your answer", async () => ({
 			kind: "result",
 			result: await runRpcQuestionnaire(ctx.ui, questionnaire),
 		}));
 	}
 	if (ctx.mode === "tui") {
-		return withHerdrBlocked(pi, "Waiting for your answer", async () => {
+		return withHerdrBlocked(pi, ctx, "Waiting for your answer", async () => {
 			const result = await runTuiQuestionnaire(ctx.ui, questionnaire, resolveAskUserCollapseKey(loadAskUserConfig()));
 			if (result) return { kind: "result", result };
 			return {
@@ -164,13 +165,22 @@ async function collectQuestionnaire(
 	};
 }
 
-async function withHerdrBlocked<T>(pi: ExtensionAPI, label: string, operation: () => Promise<T>): Promise<T> {
+async function withHerdrBlocked<T>(pi: ExtensionAPI, ctx: ExtensionContext, label: string, operation: () => Promise<T>): Promise<T> {
 	pi.events.emit(HERDR_BLOCKED_EVENT, { active: true, label });
+	reportQuestionStatus(ctx, true);
 	try {
 		return await operation();
 	} finally {
 		pi.events.emit(HERDR_BLOCKED_EVENT, { active: false, label });
+		reportQuestionStatus(ctx, false);
 	}
+}
+
+// Only the TUI owns the terminal; in RPC mode stdout is the protocol stream.
+function reportQuestionStatus(ctx: ExtensionContext, active: boolean): void {
+	if (ctx.mode !== "tui") return;
+	const report = questionStatusReport(active, ctx.isIdle());
+	if (report) process.stdout.write(report);
 }
 
 async function answerLastAssistantMessage(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
