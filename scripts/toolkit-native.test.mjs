@@ -9,7 +9,7 @@ import test from "node:test";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 for (const legacy of [false, true]) {
-  test(`native Pi loads toolkit extensions and skills with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
+  test(`native Pi loads toolkit extensions with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
     const base = mkdtempSync(join(tmpdir(), "pi-wizard-native-"));
     t.after(() => rmSync(base, { recursive: true, force: true }));
     const agentDir = join(base, "agent");
@@ -17,7 +17,7 @@ for (const legacy of [false, true]) {
     mkdirSync(home);
     mkdirSync(agentDir);
     if (legacy) {
-      for (const kind of ["extensions", "skills", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
+      for (const kind of ["extensions", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
       writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultModel: "keep-local-model", theme: "light",
         packages: ["local-packages/ask-user-question",
           { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/favorites-cycle.ts"] }] }));
@@ -42,8 +42,7 @@ for (const legacy of [false, true]) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
           extension.resolvedPath.endsWith('/' + suffix)).length, 1, suffix);
       }
-      assert.equal(loader.getSkills().skills.filter((skill) => skill.name === 'impeccable').length, 1);
-      assert.equal(loader.getSkills().skills.some((skill) => skill.name === 'analyze-sessions'), false);
+      assert.deepEqual(loader.getSkills().skills, []);
     `], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     if (legacy) {

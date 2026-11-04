@@ -1,8 +1,8 @@
 # Pi setup
 
-My [Pi](https://pi.dev) extensions, skills, and preferences, ready to install on another machine. Choose packages during setup; model choices, credentials, and session history stay local.
+My [Pi](https://pi.dev) extensions and preferences, ready to install on another machine. Choose packages during setup; model choices, credentials, and session history stay local.
 
-Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, plus Impeccable and session-analysis skills.
+Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session naming and next-prompt suggestions using a shared utility model, and questionnaire and todo tools.
 
 ## Install
 
@@ -30,7 +30,7 @@ The interactive wizard also offers an optional **permanent delete** checklist fo
 | --- | --- |
 | [`manifest.json`](manifest.json) | Package checklist and known legacy resource paths |
 | [`preferences.json`](preferences.json) | Shared display and compaction defaults |
-| [`dotfiles/`](dotfiles/) | Custom extensions, skills, and system instructions |
+| [`dotfiles/`](dotfiles/) | Custom extensions and system instructions |
 
 Setup fills missing preferences without replacing existing values. Package selections are saved per machine; existing package pins and filters are preserved. Use `pi config` to disable individual extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not remove it unless you explicitly check it in the delete step.
 
@@ -72,7 +72,7 @@ On migration, setup wraps known source-owned copies and converts its old source 
 
 A symlink to any other source is refused before setup writes anything. To adopt it, replace the link with a regular copy of its contents first; setup never modifies the linked source.
 
-External tools, browser setup, MCP credentials, Herdr integration, and separately managed `~/.agents/skills` are not provisioned here.
+External tools, browser setup, MCP credentials, Herdr integration, and skills are not provisioned here. Previously installed loose skills are not removed automatically; review the optional delete checklist if you want to remove them.
 
 ### Favorite models
 
@@ -169,7 +169,6 @@ This installs only the custom resources into a separate Pi directory. Use the sa
 ```sh
 npm test
 npm run test:resources
-npm run test:skills     # Python 3
 npm run test:wizard     # Python 3, Unix pseudo-terminal
 pi install npm:pi-model-pick # Required for the TUI check, or set PI_MODEL_PICK_EXTENSION
 npm run test:utility-tui # Python 3 and tmux; isolated Pi, local fixture, no API calls

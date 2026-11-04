@@ -23,8 +23,7 @@
   },
   "files": [
     "dotfiles/extensions",
-    "dotfiles/local-packages",
-    "dotfiles/skills"
+    "dotfiles/local-packages"
   ],
   "pi": {
     "extensions": [
@@ -35,9 +34,6 @@
       "./dotfiles/extensions/pi-cache-observer/index.ts",
       "./dotfiles/local-packages/ask-user-question/index.ts",
       "./dotfiles/extensions/next-prompt/index.ts"
-    ],
-    "skills": [
-      "./dotfiles/skills"
     ]
   },
   "peerDependencies": {
