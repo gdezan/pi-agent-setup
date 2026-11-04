@@ -32,6 +32,10 @@ import { parseToolkitOptions, TOOLKIT_HELP } from "./toolkit-options.mjs";
 import { createToolkitUI } from "./toolkit-ui.mjs";
 import { runToolkitCommand, ToolkitCancelled } from "./toolkit-command.mjs";
 import {
+  installToolkitExtensionDependencies,
+  toolkitExtensionDependenciesMissing,
+} from "./toolkit-dependencies.mjs";
+import {
   assertToolkitCleanupPath,
   listToolkitCleanupCandidates,
   readToolkitKeep,
@@ -148,7 +152,7 @@ function stateAfterDeployment(plan, files) {
         ? toolkitLinkMatches(plan.resources.target, plan.root)
         : toolkitCopyMatches(plan.resources.target, files)))
   ) {
-    next.packageHash = toolkitPathHash(plan.resources.target);
+    next.packageHash = toolkitPathHash(plan.resources.target, { ignoreDependencies: true });
   }
   if (plan.instructions.owned) {
     next.appendSystemHash = null;
@@ -164,6 +168,7 @@ export async function runToolkitSetup({
   input = process.stdin,
   output = process.stdout,
   installPackage = runToolkitPackageCommand,
+  installExtensionDependencies = installToolkitExtensionDependencies,
   removePackage = runToolkitRemoveCommand,
   uiFactory = createToolkitUI,
   signal: suppliedSignal,
@@ -322,6 +327,13 @@ export async function runToolkitSetup({
           (entry) => entry.action !== "keep",
         ) ||
         cleanup.length > 0 ||
+        (plan.resources.register &&
+          !plan.resources.keptConflict &&
+          toolkitExtensionDependenciesMissing({
+            root: plan.resources.target,
+            resources: manifest.resources,
+            selectedExtensions: plan.state.selectedExtensions,
+          })) ||
         settingsChanged ||
         JSON.stringify(plan.state) !== JSON.stringify(state);
       if (!changes) {
@@ -463,6 +475,23 @@ export async function runToolkitSetup({
         backupName: "toolkit-state.json",
       });
     saveState();
+    const extensionDependencies = {
+      root: plan.resources.target,
+      resources: manifest.resources,
+      selectedExtensions: plan.state.selectedExtensions,
+      signal,
+    };
+    if (
+      plan.resources.register &&
+      !plan.resources.keptConflict &&
+      toolkitExtensionDependenciesMissing(extensionDependencies)
+    ) {
+      await ui.task(
+        "Installing local extension dependencies",
+        () => installExtensionDependencies(extensionDependencies),
+        "Installed local extension dependencies",
+      );
+    }
     for (const entry of operations) {
       checkAbort();
       await ui.task(

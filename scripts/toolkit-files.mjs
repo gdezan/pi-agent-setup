@@ -14,7 +14,12 @@ import {
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-const SKIP_SOURCE_ENTRIES = new Set([".git", "node_modules", "__pycache__", ".DS_Store"]);
+const DEPENDENCY_ENTRIES = new Set([
+  "node_modules",
+  ".toolkit-dependencies.pending",
+  ".toolkit-dependencies.lock",
+]);
+const SKIP_SOURCE_ENTRIES = new Set([".git", "__pycache__", ".DS_Store", ...DEPENDENCY_ENTRIES]);
 
 /** Inspect an install path without following a possibly dangling symlink. */
 export function toolkitPathStat(path) {
@@ -132,6 +137,7 @@ export function toolkitCopyMatches(target, files) {
   const deployed = [];
   function walk(path) {
     for (const entry of readdirSync(path)) {
+      if (DEPENDENCY_ENTRIES.has(entry)) continue;
       const full = join(path, entry);
       const stat = lstatSync(full);
       if (stat.isSymbolicLink()) return false;
@@ -228,7 +234,7 @@ export function archiveToolkitLegacyPath({ agentDir, target, backupRoot, legacy 
 }
 
 /** Fingerprint deployed files and links without traversing symlinks; missing paths have a null fingerprint. */
-export function toolkitPathHash(path) {
+export function toolkitPathHash(path, { ignoreDependencies = false } = {}) {
   const stat = toolkitPathStat(path);
   if (!stat) return null;
   if (stat.isSymbolicLink()) return toolkitContentHash(`link:${readlinkSync(path)}`);
@@ -240,8 +246,9 @@ export function toolkitPathHash(path) {
   return toolkitContentHash(
     JSON.stringify(
       readdirSync(path)
+        .filter((name) => !ignoreDependencies || !DEPENDENCY_ENTRIES.has(name))
         .sort()
-        .map((name) => [name, toolkitPathHash(join(path, name))]),
+        .map((name) => [name, toolkitPathHash(join(path, name), { ignoreDependencies })]),
     ),
   );
 }

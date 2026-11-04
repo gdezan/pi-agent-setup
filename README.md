@@ -4,7 +4,8 @@ My [Pi](https://pi.dev) extensions and preferences, ready to install on another 
 packages during setup; model choices, credentials, and session history stay local.
 
 Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session
-naming and next-prompt suggestions using a shared utility model, and questionnaire and todo tools.
+naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, and
+[inline Mermaid images](dotfiles/extensions/mermaid-images/README.md) in Kitty-compatible terminals.
 
 ## Install
 
@@ -19,8 +20,13 @@ node setup.mjs
 
 The first run installs the wizard's pinned dependencies. Setup shows a package checklist, an
 optional unchecked delete checklist when there are cleanup candidates, and a change preview before
-writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close Pi first. Start `pi` afterward and
-use `/login` to authenticate.
+writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Selected local extensions with pinned
+runtime dependencies get their own locked installation. Close Pi first. Start `pi` afterward and use
+`/login` to authenticate.
+
+Mermaid images require Pi 1.5.0+ and `markdown.mermaid` set to `"off"` in your machine's settings to
+avoid Pi's earlier built-in transformation. The extension warns rather than changing that setting.
+Terminals without Kitty graphics then show Mermaid source fences.
 
 Run setup as often as needed. It keeps installed third-party packages, remembers your choices, and
 makes no changes on an unchanged rerun. Recognized legacy resources matching the bundle move into a
@@ -43,6 +49,11 @@ Run `npm install` to install development dependencies, then use `npm run lint` t
 and TypeScript, `npm run format` to format supported files, and `npm run format:check` to check
 formatting without writing changes. Oxfmt targets a 100-column print width; it may leave unbreakable
 content longer.
+
+For Mermaid checks, install its runtime dependencies with
+`npm ci --prefix dotfiles/extensions/mermaid-images --ignore-scripts --legacy-peer-deps`, then run
+`npm run test:mermaid`. This includes disposable regular/fullscreen Pi PTY checks with no model
+calls.
 
 ## Customize
 

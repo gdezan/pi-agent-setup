@@ -1,11 +1,76 @@
+import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { runToolkitCommand, ToolkitCancelled } from "./toolkit-command.mjs";
 
 const PENDING = "Pi setup dependency installation incomplete.\n";
 
-/** Bootstrap the locked checkout dependencies once; preserve a retry marker if npm is interrupted. */
-export async function ensureToolkitDependencies(root, { dryRun, signal, onOutput = () => {} }) {
+function runtimeLockHash(root) {
+  return createHash("sha256")
+    .update(`${process.platform}:${process.arch}:${process.versions.modules}:`)
+    .update(readFileSync(join(root, "package-lock.json")))
+    .digest("hex");
+}
+
+function dependenciesMissing(root, includeDev) {
+  if (existsSync(join(root, ".toolkit-dependencies.pending"))) return true;
+  if (!includeDev) {
+    const stamp = join(root, "node_modules/.toolkit-lock-hash");
+    if (!existsSync(stamp) || readFileSync(stamp, "utf8") !== runtimeLockHash(root)) return true;
+  }
+  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  return Object.entries({
+    ...packageJson.dependencies,
+    ...(includeDev ? packageJson.devDependencies : {}),
+  }).some(([name, version]) => {
+    try {
+      return (
+        JSON.parse(readFileSync(join(root, "node_modules", name, "package.json"), "utf8"))
+          ?.version !== version
+      );
+    } catch {
+      return true;
+    }
+  });
+}
+
+function extensionDependencyRoots({ root, resources, selectedExtensions }) {
+  return [
+    ...new Set(
+      resources
+        .filter(
+          (resource) => resource.kind === "extensions" && selectedExtensions.includes(resource.id),
+        )
+        .map((resource) => dirname(join(root, resource.path))),
+    ),
+  ].filter(
+    (directory) =>
+      existsSync(join(directory, "package.json")) &&
+      Object.keys(
+        JSON.parse(readFileSync(join(directory, "package.json"), "utf8")).dependencies ?? {},
+      ).length,
+  );
+}
+
+export function toolkitExtensionDependenciesMissing(options) {
+  return extensionDependencyRoots(options).some((root) => dependenciesMissing(root, false));
+}
+
+export async function installToolkitExtensionDependencies(
+  options,
+  installCommand = runToolkitCommand,
+) {
+  for (const root of extensionDependencyRoots(options)) {
+    await ensureToolkitDependencies(root, { ...options, includeDev: false }, installCommand);
+  }
+}
+
+/** Preserve a retry marker when a locked dependency installation is interrupted. */
+export async function ensureToolkitDependencies(
+  root,
+  { dryRun, signal, includeDev = true, onOutput = () => {} },
+  installCommand = runToolkitCommand,
+) {
   const lock = join(root, ".toolkit-dependencies.lock");
   const pending = join(root, ".toolkit-dependencies.pending");
   for (const path of [lock, pending]) {
@@ -38,20 +103,7 @@ export async function ensureToolkitDependencies(root, { dryRun, signal, onOutput
   const retry = existsSync(pending);
   if (retry && readFileSync(pending, "utf8") !== PENDING)
     throw new Error(`Unrecognized toolkit dependency marker: ${pending}`);
-  const packageJson = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  const missing = Object.entries({
-    ...packageJson.dependencies,
-    ...packageJson.devDependencies,
-  }).some(([name, version]) => {
-    try {
-      return (
-        JSON.parse(readFileSync(join(root, "node_modules", name, "package.json"), "utf8"))
-          ?.version !== version
-      );
-    } catch {
-      return true;
-    }
-  });
+  const missing = dependenciesMissing(root, includeDev);
   if (!missing && !retry) return;
   if (dryRun)
     throw new Error(
@@ -68,14 +120,17 @@ export async function ensureToolkitDependencies(root, { dryRun, signal, onOutput
   }
   try {
     if (!retry) writeFileSync(pending, PENDING, { flag: "wx", mode: 0o600 });
-    onOutput("Installing locked setup dependencies in this checkout…\n");
-    await runToolkitCommand({
+    const lockHash = includeDev ? undefined : runtimeLockHash(root);
+    onOutput(
+      `Installing locked ${includeDev ? "setup" : "extension runtime"} dependencies in ${root}…\n`,
+    );
+    await installCommand({
       command: "npm",
       args: [
         "ci",
         "--ignore-scripts",
         "--legacy-peer-deps",
-        "--include=dev",
+        includeDev ? "--include=dev" : "--omit=dev",
         "--no-audit",
         "--no-fund",
       ],
@@ -83,6 +138,8 @@ export async function ensureToolkitDependencies(root, { dryRun, signal, onOutput
       signal,
       onOutput,
     });
+    if (!includeDev)
+      writeFileSync(join(root, "node_modules/.toolkit-lock-hash"), lockHash, { mode: 0o600 });
     rmSync(pending);
   } finally {
     rmSync(lock, { force: true });

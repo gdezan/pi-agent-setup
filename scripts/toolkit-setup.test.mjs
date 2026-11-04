@@ -122,6 +122,104 @@ function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+test("copy setup installs selected local runtime dependencies and stays unchanged on rerun", async (t) => {
+  const f = fixture(t);
+  f.put("dotfiles/local-packages/local/package.json", {
+    name: "@local/local",
+    dependencies: { "fixture-renderer": "1.0.0" },
+    pi: { extensions: ["./index.ts"] },
+  });
+  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  const installs = [];
+  const installExtensionDependencies = async (options) => {
+    const { installToolkitExtensionDependencies } = await import("./toolkit-dependencies.mjs");
+    await installToolkitExtensionDependencies(options, async ({ cwd, args }) => {
+      assert.deepEqual(args, [
+        "ci",
+        "--ignore-scripts",
+        "--legacy-peer-deps",
+        "--omit=dev",
+        "--no-audit",
+        "--no-fund",
+      ]);
+      installs.push(cwd);
+      writeJson(join(cwd, "node_modules/fixture-renderer/package.json"), { version: "1.0.0" });
+    });
+  };
+  const extra = { installExtensionDependencies };
+  await f.run(["--skip-packages", "--extensions", "demo"], f.install, extra);
+  assert.equal(installs.length, 0, "Deselected extensions must not install dependencies");
+  await f.run(["--skip-packages", "--extensions", "demo,local"], f.install, extra);
+  const deployed = join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/local-packages/local");
+  assert.equal(existsSync(join(deployed, "node_modules/fixture-renderer/package.json")), true);
+  assert.equal(installs.length, 1);
+  assert.equal((await f.run([], f.install, extra)).status, "unchanged");
+  assert.equal(installs.length, 1);
+  rmSync(join(deployed, "node_modules"), { recursive: true });
+  await f.run(["--skip-packages", "--dry-run"], f.install, extra);
+  assert.equal(installs.length, 1, "A dry run must not install missing runtime dependencies");
+  await f.run([], f.install, extra);
+  assert.equal(
+    installs.length,
+    2,
+    "Missing runtime dependencies must repair even when source files match",
+  );
+});
+
+test("linked local runtime dependencies reinstall when their lockfile changes", async (t) => {
+  const f = fixture(t);
+  f.put("dotfiles/local-packages/local/package.json", {
+    name: "@local/local",
+    dependencies: { "fixture-renderer": "1.0.0" },
+  });
+  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  let installs = 0;
+  const extra = {
+    installExtensionDependencies: async (options) => {
+      const { installToolkitExtensionDependencies } = await import("./toolkit-dependencies.mjs");
+      await installToolkitExtensionDependencies(options, async ({ cwd }) => {
+        installs++;
+        writeJson(join(cwd, "node_modules/fixture-renderer/package.json"), { version: "1.0.0" });
+      });
+    },
+  };
+  await f.run(["--skip-packages", "--link"], f.install, extra);
+  f.put("dotfiles/local-packages/local/package-lock.json", {
+    lockfileVersion: 3,
+    packages: { nested: { version: "2.0.0" } },
+  });
+  await f.run(["--skip-packages", "--link"], f.install, extra);
+  assert.equal(installs, 2);
+  assert.equal((await f.run(["--skip-packages", "--link"], f.install, extra)).status, "unchanged");
+});
+
+test("an interrupted local runtime install retries without treating its deployment as a conflict", async (t) => {
+  const f = fixture(t);
+  f.put("dotfiles/local-packages/local/package.json", {
+    name: "@local/local",
+    dependencies: { "fixture-renderer": "1.0.0" },
+    pi: { extensions: ["./index.ts"] },
+  });
+  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  let attempts = 0;
+  const extra = {
+    installExtensionDependencies: async (options) => {
+      const { installToolkitExtensionDependencies } = await import("./toolkit-dependencies.mjs");
+      await installToolkitExtensionDependencies(options, async ({ cwd }) => {
+        writeJson(join(cwd, "node_modules/fixture-renderer/package.json"), { version: "1.0.0" });
+        if (++attempts === 1) throw new Error("Interrupted fixture install");
+      });
+    },
+  };
+  await assert.rejects(f.run(undefined, f.install, extra), /Interrupted fixture install/);
+  const deployed = join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/local-packages/local");
+  assert.equal(existsSync(join(deployed, ".toolkit-dependencies.pending")), true);
+  assert.equal((await f.run(undefined, f.install, extra)).status, "applied");
+  assert.equal(attempts, 2);
+  assert.equal(existsSync(join(deployed, ".toolkit-dependencies.pending")), false);
+  assert.equal((await f.run(undefined, f.install, extra)).status, "unchanged");
+});
+
 test("copy setup installs only allowlisted resources and seeds settings", async (t) => {
   const f = fixture(t);
   f.put("unrelated-secret.txt", "never copy");

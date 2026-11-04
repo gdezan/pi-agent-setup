@@ -131,7 +131,8 @@ function planPackageFiles({ root, agentDir, files, state, mode, replaceResources
     mode === "link" ? toolkitLinkMatches(target, root) : toolkitCopyMatches(target, files);
   const baseline =
     state.ownsPackage &&
-    (state.packageHash === toolkitPathHash(target) || toolkitLinkMatches(target, root));
+    (state.packageHash === toolkitPathHash(target, { ignoreDependencies: true }) ||
+      toolkitLinkMatches(target, root));
   const conflict = exists && !matches && !baseline && !replaceResources;
   return {
     id: "resources",

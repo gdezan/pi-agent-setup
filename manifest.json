@@ -38,6 +38,12 @@
       "legacy": ["extensions/pi-cache-observer/index.ts"]
     },
     {
+      "id": "mermaid-images",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/mermaid-images/index.js",
+      "legacy": []
+    },
+    {
       "id": "ask-user-question",
       "kind": "extensions",
       "path": "dotfiles/extensions/ask-user-question/index.ts",
