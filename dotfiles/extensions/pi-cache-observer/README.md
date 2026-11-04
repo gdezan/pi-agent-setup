@@ -6,7 +6,8 @@ A conservative prompt-cache observer for pi.
 
 - Reads normalized assistant usage from `message_end`.
 - Calculates prompt tokens as `input + cacheRead + cacheWrite` and reports a session hit rate.
-- Classifies turns as `unknown`, `unsupported`, `cache-write`, `cache-hit`, `partial-hit`, or `miss`.
+- Classifies turns as `unknown`, `unsupported`, `cache-write`, `cache-hit`, `partial-hit`, or
+  `miss`.
 - Alerts only for meaningful zero-read misses after prior cache activity and a 1,024-token floor.
 - Resets the comparison baseline after model changes, compaction, tree navigation, and manual reset.
 - Persists only redacted provider/model aggregates for 30 days, bounded to 1 MB.
@@ -39,8 +40,14 @@ The optimizer reads only a trusted project's `.pi/prompt-cache.json`:
 }
 ```
 
-Preview mode is the default whenever optimizer configuration is present. `live` mode is explicit and only adds `prompt_cache_key` to a verified OpenAI-compatible chat payload for an exact provider/model allowlist match. It does not rewrite prompts, add headers, warm caches, or send retention hints. Unsafe, malformed, unsupported, and failed mutations preserve the original payload.
+Preview mode is the default whenever optimizer configuration is present. `live` mode is explicit and
+only adds `prompt_cache_key` to a verified OpenAI-compatible chat payload for an exact
+provider/model allowlist match. It does not rewrite prompts, add headers, warm caches, or send
+retention hints. Unsafe, malformed, unsupported, and failed mutations preserve the original payload.
 
-Do not add a live entry until a real serialized payload fixture for the active provider has been inspected. OpenAI-shaped proxies are not interchangeable.
+Do not add a live entry until a real serialized payload fixture for the active provider has been
+inspected. OpenAI-shaped proxies are not interchangeable.
 
-Aggregate storage is global at `$PI_CODING_AGENT_DIR/prompt-cache-stats.json` (default `~/.pi/agent/prompt-cache-stats.json`). It contains no prompts, payloads, headers, base URLs, or session IDs.
+Aggregate storage is global at `$PI_CODING_AGENT_DIR/prompt-cache-stats.json` (default
+`~/.pi/agent/prompt-cache-stats.json`). It contains no prompts, payloads, headers, base URLs, or
+session IDs.
