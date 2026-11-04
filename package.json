@@ -9,8 +9,7 @@
     "url": "git+ssh://git@github.com/gdezan/pi-agent-setup.git"
   },
   "files": [
-    "dotfiles/extensions",
-    "dotfiles/local-packages"
+    "dotfiles/extensions"
   ],
   "type": "module",
   "scripts": {
@@ -20,7 +19,7 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "node --test scripts/*.test.mjs",
-    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/extensions/pi-footer/sections/*.test.ts dotfiles/extensions/tests/*.test.ts dotfiles/local-packages/ask-user-question/tests/*.test.ts && npm run test:footer-render",
+    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/pi-cache-observer/*.test.ts dotfiles/extensions/pi-footer/sections/*.test.ts dotfiles/extensions/tests/*.test.ts dotfiles/extensions/ask-user-question/tests/*.test.ts && npm run test:footer-render",
     "test:footer-render": "node --experimental-strip-types dotfiles/extensions/pi-footer/footer.render-check.ts",
     "test:wizard": "python3 -B scripts/toolkit-wizard.test.py",
     "test:utility-tui": "python3 -B scripts/utility-model-tui.test.py"
@@ -51,7 +50,7 @@
       "./dotfiles/extensions/provider-usage.ts",
       "./dotfiles/extensions/session-autoname.ts",
       "./dotfiles/extensions/pi-cache-observer/index.ts",
-      "./dotfiles/local-packages/ask-user-question/index.ts",
+      "./dotfiles/extensions/ask-user-question/index.ts",
       "./dotfiles/extensions/next-prompt/index.ts"
     ]
   }

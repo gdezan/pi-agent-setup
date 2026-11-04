@@ -55,6 +55,8 @@ export function validateToolkitResources(manifest, files) {
       !files.has(resource.path) ||
       !Array.isArray(resource.legacy) ||
       !resource.legacy.every(safePath) ||
+      (resource.previousPaths !== undefined &&
+        (!Array.isArray(resource.previousPaths) || !resource.previousPaths.every(safePath))) ||
       (resource.packageName !== undefined && typeof resource.packageName !== "string")
     ) {
       throw new Error(

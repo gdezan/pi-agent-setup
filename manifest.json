@@ -40,7 +40,8 @@
     {
       "id": "ask-user-question",
       "kind": "extensions",
-      "path": "dotfiles/local-packages/ask-user-question/index.ts",
+      "path": "dotfiles/extensions/ask-user-question/index.ts",
+      "previousPaths": ["dotfiles/local-packages/ask-user-question/index.ts"],
       "legacy": ["local-packages/ask-user-question/index.ts"],
       "packageName": "@local/ask-user-question"
     }

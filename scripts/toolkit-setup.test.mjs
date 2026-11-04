@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  renameSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -21,6 +22,7 @@ import { runToolkitSetup } from "./toolkit-setup.mjs";
 import { readToolkitJson, toolkitPackageIdentity } from "./toolkit-settings.mjs";
 import { inspectToolkitInventory } from "./toolkit-inventory.mjs";
 import { toolkitContentHash, toolkitPathHash } from "./toolkit-files.mjs";
+import { reconcileToolkitExclusions } from "./toolkit-plan.mjs";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -922,6 +924,72 @@ test("unmanaged package destinations can be kept without activating or owning th
   assert.equal(json(join(f.agentDir, "toolkit-state.json")).ownsPackage, false);
   assert.equal((await f.run()).status, "unchanged");
   assert.equal(readFileSync(join(path, "unrelated.txt"), "utf8"), "local file");
+});
+
+test("upgrading a moved resource preserves a user exclusion", async (t) => {
+  const f = fixture(t);
+  await f.run();
+  const settingsPath = join(f.agentDir, "settings.json");
+  const settings = json(settingsPath);
+  settings.packages = [
+    { source: "toolkits/pi-agent-setup", extensions: ["-dotfiles/local-packages/local/index.ts"] },
+  ];
+  writeJson(settingsPath, settings);
+  renameSync(
+    join(f.root, "dotfiles/local-packages/local"),
+    join(f.root, "dotfiles/extensions/local"),
+  );
+  const pkg = json(join(f.root, "package.json"));
+  pkg.files = pkg.files.filter((path) => path !== "dotfiles/local-packages");
+  pkg.pi.extensions[1] = "./dotfiles/extensions/local/index.ts";
+  f.put("package.json", pkg);
+  const manifest = json(join(f.root, "manifest.json"));
+  manifest.resources[1].previousPaths = [manifest.resources[1].path];
+  manifest.resources[1].path = "dotfiles/extensions/local/index.ts";
+  f.put("manifest.json", manifest);
+  await f.run();
+  const updated = json(settingsPath);
+  assert.deepEqual(updated.packages[0].extensions, ["-dotfiles/extensions/local/index.ts"]);
+  const inventory = await inspectToolkitInventory({
+    root: f.root,
+    agentDir: f.agentDir,
+    settings: updated,
+    manifest,
+  });
+  assert.equal(
+    inventory.paths.extensions.some(
+      (entry) => entry.enabled && entry.path.endsWith("/local/index.ts"),
+    ),
+    false,
+  );
+  assert.equal((await f.run()).status, "unchanged");
+});
+
+test("moved resources preserve exact user filters and replace toolkit-owned exclusions", () => {
+  const oldPath = "dotfiles/local-packages/local/index.ts";
+  const newPath = "dotfiles/extensions/local/index.ts";
+  const resource = {
+    id: "local",
+    kind: "extensions",
+    path: newPath,
+    previousPaths: [oldPath],
+    existing: [],
+  };
+  for (const prefix of ["+", "-"]) {
+    const settings = {
+      packages: [{ source: "toolkits/pi-agent-setup", extensions: [`${prefix}${oldPath}`] }],
+    };
+    const result = reconcileToolkitExclusions(settings, "/agent", [resource], ["local"]);
+    assert.deepEqual(result.settings.packages[0].extensions, [`${prefix}${newPath}`]);
+  }
+  const settings = {
+    packages: [{ source: "toolkits/pi-agent-setup", extensions: [`-${oldPath}`] }],
+  };
+  const result = reconcileToolkitExclusions(settings, "/agent", [resource], [], {
+    extensions: [`-${oldPath}`],
+  });
+  assert.deepEqual(result.settings.packages[0].extensions, [`-${newPath}`]);
+  assert.deepEqual(result.exclusions.extensions, [`-${newPath}`]);
 });
 
 test("legacy resource exclusions are removed when the old copy goes away, without removing user filters", async (t) => {

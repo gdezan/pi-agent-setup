@@ -97,6 +97,17 @@ export function reconcileToolkitExclusions(
       patterns = patterns.filter((pattern) => !old.includes(pattern));
       if (!patterns.length) patterns = undefined;
     }
+    if (patterns) {
+      patterns = patterns.map((pattern) => {
+        const resource = resources.find(
+          (item) =>
+            item.kind === kind &&
+            ["+", "-"].includes(pattern[0]) &&
+            item.previousPaths?.includes(pattern.slice(1)),
+        );
+        return resource ? `${pattern[0]}${resource.path}` : pattern;
+      });
+    }
     const required = resources
       .filter((resource) =>
         shouldExcludeToolkitResource(resource, kind, patterns, selectedExtensions),

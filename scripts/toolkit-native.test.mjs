@@ -8,6 +8,38 @@ import test from "node:test";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
+test("native Pi loads the questionnaire as a standalone local package", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "pi-question-standalone-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const agentDir = join(base, "agent");
+  mkdirSync(agentDir);
+  const packagePath = join(root, "dotfiles/extensions/ask-user-question");
+  writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [packagePath] }));
+  const sdk = pathToFileURL(
+    join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
+  ).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
+    import assert from 'node:assert/strict';
+    import { DefaultResourceLoader } from ${JSON.stringify(sdk)};
+    const loader = new DefaultResourceLoader({cwd:${JSON.stringify(join(base, "project"))}, agentDir:${JSON.stringify(agentDir)}, noContextFiles:true});
+    await loader.reload();
+    assert.deepEqual(loader.getExtensions().errors, []);
+    assert.deepEqual(loader.getExtensions().extensions.map((extension) => extension.resolvedPath), [${JSON.stringify(join(packagePath, "index.ts"))}]);
+  `,
+    ],
+    {
+      env: { ...process.env, HOME: base, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: "1" },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
 for (const legacy of [false, true]) {
   test(`native Pi loads toolkit extensions with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
     const base = mkdtempSync(join(tmpdir(), "pi-wizard-native-"));
@@ -17,8 +49,15 @@ for (const legacy of [false, true]) {
     mkdirSync(home);
     mkdirSync(agentDir);
     if (legacy) {
-      for (const kind of ["extensions", "local-packages"])
-        cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
+      cpSync(join(root, "dotfiles/extensions"), join(agentDir, "extensions"), {
+        recursive: true,
+        filter: (path) => !path.startsWith(join(root, "dotfiles/extensions/ask-user-question")),
+      });
+      cpSync(
+        join(root, "dotfiles/extensions/ask-user-question"),
+        join(agentDir, "local-packages/ask-user-question"),
+        { recursive: true },
+      );
       writeFileSync(
         join(agentDir, "settings.json"),
         JSON.stringify({

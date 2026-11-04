@@ -1,6 +1,9 @@
 # Private ask-user-question extension
 
-This package replaces `@juicesharp/rpiv-ask-user-question` in the local Pi installation.
+This package replaces `@juicesharp/rpiv-ask-user-question` in the local Pi installation. It is
+included in the toolkit and can also be installed on its own with
+`pi install ./dotfiles/extensions/ask-user-question` from the repository root. Do not enable both
+copies at the same time.
 
 ## Runtime behavior
 
