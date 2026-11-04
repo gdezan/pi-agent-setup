@@ -12,8 +12,8 @@
 
 ## Communication
 
-- **Plain language:** Lead with the answer, outcome, or recommendation. 
-  Use direct, concrete sentences about what something does, what changes, and why it matters. 
+- **Plain language:** Lead with the answer, outcome, or recommendation.
+  Use direct, concrete sentences about what something does, what changes, and why it matters.
   Omit preambles, repetition, closing filler, decorative metaphors,
   mannered prose, and praise or defense of your own approach.
 - **Readability:** Group related information in short paragraphs and number sequential

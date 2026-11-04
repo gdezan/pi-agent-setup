@@ -11,56 +11,56 @@ export const TYPE_SOMETHING_LABEL = "Type something";
 export const SKIP_LABEL = "Skip";
 
 export type AskQuestionInput = {
-	id?: string;
-	question: string;
-	header: string;
-	options: AskOptionInput[];
-	multiSelect?: boolean;
+  id?: string;
+  question: string;
+  header: string;
+  options: AskOptionInput[];
+  multiSelect?: boolean;
 };
 
 export type AskOptionInput = {
-	label: string;
-	description: string;
+  label: string;
+  description: string;
 };
 
 export type AskQuestionnaireInput = {
-	questions: AskQuestionInput[];
+  questions: AskQuestionInput[];
 };
 
 export type AskQuestion = {
-	id: string;
-	question: string;
-	header: string;
-	options: AskOptionInput[];
-	multiSelect: boolean;
-	/** Internal `/answer` fallback marker: selecting the first authored row opens freeform input. */
-	freeformOnly?: boolean;
+  id: string;
+  question: string;
+  header: string;
+  options: AskOptionInput[];
+  multiSelect: boolean;
+  /** Internal `/answer` fallback marker: selecting the first authored row opens freeform input. */
+  freeformOnly?: boolean;
 };
 
 export type AskQuestionnaire = {
-	questions: AskQuestion[];
+  questions: AskQuestion[];
 };
 
 export type AskQuestionAnswer = {
-	questionId: string;
-	question: string;
-	kind: "option" | "custom" | "multi" | "skipped";
-	answer: string | null;
-	selected?: string[];
+  questionId: string;
+  question: string;
+  kind: "option" | "custom" | "multi" | "skipped";
+  answer: string | null;
+  selected?: string[];
 };
 
 export type AskQuestionnaireDetails = {
-	questions: AskQuestion[];
-	answers: AskQuestionAnswer[];
-	cancelled: boolean;
-	error?: string;
+  questions: AskQuestion[];
+  answers: AskQuestionAnswer[];
+  cancelled: boolean;
+  error?: string;
 };
 
 export type QuestionnaireRunResult = {
-	answers: AskQuestionAnswer[];
-	cancelled: boolean;
+  answers: AskQuestionAnswer[];
+  cancelled: boolean;
 };
 
 export type ValidationResult =
-	| { ok: true; questionnaire: AskQuestionnaire }
-	| { ok: false; error: string; message: string };
+  | { ok: true; questionnaire: AskQuestionnaire }
+  | { ok: false; error: string; message: string };

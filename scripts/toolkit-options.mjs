@@ -45,23 +45,51 @@ Inspection and verification cover this global agent directory, not project overr
 
 /** Validate flags before loading dependencies, inspecting files, or changing anything. */
 export function parseToolkitOptions(argv) {
-  const { values } = parseArgs({ args: argv, options: {
-    "agent-dir": { type: "string" }, link: { type: "boolean" }, copy: { type: "boolean" },
-    packages: { type: "string" }, "all-packages": { type: "boolean" }, "skip-packages": { type: "boolean" },
-    extensions: { type: "string" }, "all-extensions": { type: "boolean" }, "skip-extensions": { type: "boolean" },
-    "reuse-selection": { type: "boolean" }, "update-packages": { type: "boolean" }, repair: { type: "boolean" },
-    conflicts: { type: "string" }, "replace-resources": { type: "boolean" }, "replace-config": { type: "boolean" },
-    "replace-legacy": { type: "boolean" }, "apply-preferences": { type: "boolean" }, "dry-run": { type: "boolean" }, "non-interactive": { type: "boolean" },
-    yes: { type: "boolean" }, json: { type: "boolean" }, "no-color": { type: "boolean" },
-    "list-packages": { type: "boolean" }, help: { type: "boolean", short: "h" },
-  } });
-  if (["packages", "all-packages", "skip-packages", "reuse-selection"].filter((key) => values[key] !== undefined).length > 1) {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      "agent-dir": { type: "string" },
+      link: { type: "boolean" },
+      copy: { type: "boolean" },
+      packages: { type: "string" },
+      "all-packages": { type: "boolean" },
+      "skip-packages": { type: "boolean" },
+      extensions: { type: "string" },
+      "all-extensions": { type: "boolean" },
+      "skip-extensions": { type: "boolean" },
+      "reuse-selection": { type: "boolean" },
+      "update-packages": { type: "boolean" },
+      repair: { type: "boolean" },
+      conflicts: { type: "string" },
+      "replace-resources": { type: "boolean" },
+      "replace-config": { type: "boolean" },
+      "replace-legacy": { type: "boolean" },
+      "apply-preferences": { type: "boolean" },
+      "dry-run": { type: "boolean" },
+      "non-interactive": { type: "boolean" },
+      yes: { type: "boolean" },
+      json: { type: "boolean" },
+      "no-color": { type: "boolean" },
+      "list-packages": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+  if (
+    ["packages", "all-packages", "skip-packages", "reuse-selection"].filter(
+      (key) => values[key] !== undefined,
+    ).length > 1
+  ) {
     throw new Error("Conflicting toolkit package flags: choose only one selection mode");
   }
-  if (["extensions", "all-extensions", "skip-extensions"].filter((key) => values[key] !== undefined).length > 1) {
+  if (
+    ["extensions", "all-extensions", "skip-extensions"].filter((key) => values[key] !== undefined)
+      .length > 1
+  ) {
     throw new Error("Conflicting toolkit extension flags: choose only one selection mode");
   }
-  if (values.link && values.copy) throw new Error("Conflicting toolkit modes: choose --link or --copy");
-  if (values.conflicts !== undefined && values.conflicts !== "keep") throw new Error("Invalid toolkit conflict policy: use --conflicts keep");
+  if (values.link && values.copy)
+    throw new Error("Conflicting toolkit modes: choose --link or --copy");
+  if (values.conflicts !== undefined && values.conflicts !== "keep")
+    throw new Error("Invalid toolkit conflict policy: use --conflicts keep");
   return values;
 }

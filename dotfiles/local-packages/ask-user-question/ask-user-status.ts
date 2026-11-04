@@ -8,9 +8,13 @@ const QUESTION_BLOCKED = "\x1b]7501;state=blocked:app=pi:kind=question\x1b\\";
 const IDLE = "\x1b]7501;state=idle:app=pi\x1b\\";
 const WORKING = "\x1b]7501;state=working:app=pi\x1b\\";
 
-export function questionStatusReport(active: boolean, idle: boolean, env: NodeJS.ProcessEnv = process.env): string | undefined {
-	if (env.PI_PROGRAM_STATUS === "0") return;
-	if (env.PI_PROGRAM_STATUS !== "1" && !env.HC_TERMINAL_ID) return;
-	if (active) return QUESTION_BLOCKED;
-	return idle ? IDLE : WORKING;
+export function questionStatusReport(
+  active: boolean,
+  idle: boolean,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (env.PI_PROGRAM_STATUS === "0") return;
+  if (env.PI_PROGRAM_STATUS !== "1" && !env.HC_TERMINAL_ID) return;
+  if (active) return QUESTION_BLOCKED;
+  return idle ? IDLE : WORKING;
 }

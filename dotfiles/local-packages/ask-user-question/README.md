@@ -20,9 +20,7 @@ Create `~/.pi/agent/ask-user-question.json`:
 {
   "collapseKey": "ctrl+]",
   "promptSnippet": "Ask the user structured questions when decisions are needed",
-  "promptGuidelines": [
-    "Use ask_user_question when requirements are ambiguous."
-  ]
+  "promptGuidelines": ["Use ask_user_question when requirements are ambiguous."]
 }
 ```
 

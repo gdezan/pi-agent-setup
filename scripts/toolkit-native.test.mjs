@@ -17,17 +17,49 @@ for (const legacy of [false, true]) {
     mkdirSync(home);
     mkdirSync(agentDir);
     if (legacy) {
-      for (const kind of ["extensions", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
-      writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultModel: "keep-local-model", theme: "light",
-        packages: ["local-packages/ask-user-question",
-          { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/favorites-cycle.ts"] }] }));
+      for (const kind of ["extensions", "local-packages"])
+        cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
+      writeFileSync(
+        join(agentDir, "settings.json"),
+        JSON.stringify({
+          defaultModel: "keep-local-model",
+          theme: "light",
+          packages: [
+            "local-packages/ask-user-question",
+            {
+              source: "toolkits/pi-agent-setup",
+              extensions: ["+dotfiles/extensions/favorites-cycle.ts"],
+            },
+          ],
+        }),
+      );
     }
-    const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"),
-      PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"), PI_OFFLINE: "1", PI_TELEMETRY: "0" };
-    const setup = spawnSync(process.execPath, [join(root, "setup.mjs"), "--skip-packages", "--conflicts", "keep", "--json"], { env, encoding: "utf8" });
+    const env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      XDG_CONFIG_HOME: join(home, ".config"),
+      XDG_CACHE_HOME: join(home, ".cache"),
+      PI_CODING_AGENT_DIR: agentDir,
+      PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"),
+      PI_OFFLINE: "1",
+      PI_TELEMETRY: "0",
+    };
+    const setup = spawnSync(
+      process.execPath,
+      [join(root, "setup.mjs"), "--skip-packages", "--conflicts", "keep", "--json"],
+      { env, encoding: "utf8" },
+    );
     assert.equal(setup.status, 0, setup.stdout + setup.stderr);
-    const sdk = pathToFileURL(join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js")).href;
-    const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    const sdk = pathToFileURL(
+      join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
+    ).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
       import assert from 'node:assert/strict';
       import {DefaultResourceLoader} from ${JSON.stringify(sdk)};
       const loader = new DefaultResourceLoader({cwd:${JSON.stringify(join(base, "project"))}, agentDir:process.env.PI_CODING_AGENT_DIR, noContextFiles:true});
@@ -43,14 +75,28 @@ for (const legacy of [false, true]) {
           extension.resolvedPath.endsWith('/' + suffix)).length, 1, suffix);
       }
       assert.deepEqual(loader.getSkills().skills, []);
-    `], { env, encoding: "utf8" });
+    `,
+      ],
+      { env, encoding: "utf8" },
+    );
     assert.equal(result.status, 0, result.stdout + result.stderr);
     if (legacy) {
-      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel, "keep-local-model");
-      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
-        String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/")), false);
+      assert.equal(
+        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel,
+        "keep-local-model",
+      );
+      assert.equal(
+        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
+          String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/"),
+        ),
+        false,
+      );
     }
-    const rerun = spawnSync(process.execPath, [join(root, "setup.mjs"), "--skip-packages", "--json"], { env, encoding: "utf8" });
+    const rerun = spawnSync(
+      process.execPath,
+      [join(root, "setup.mjs"), "--skip-packages", "--json"],
+      { env, encoding: "utf8" },
+    );
     assert.equal(rerun.status, 0, rerun.stdout + rerun.stderr);
     assert.equal(JSON.parse(rerun.stdout).status, "unchanged");
   });

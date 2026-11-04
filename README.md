@@ -9,7 +9,7 @@ Includes a custom footer, favorites-based model cycling, usage and cache display
 Requires Git and Node.js **22.19+**. Tested with Pi **1.4.0** on Linux.
 
 ```sh
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.4.0
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.5.0
 git clone git@github.com:gdezan/pi-agent-setup.git
 cd pi-agent-setup
 node setup.mjs
@@ -24,13 +24,17 @@ The interactive wizard also offers an optional **permanent delete** checklist fo
 > [!IMPORTANT]
 > If your existing `~/.pi` is a checkout of this repository, **do not pull this layout into it**. Clone into a separate folder. Setup can use that existing installation without moving its extensions.
 
+## Development checks
+
+Run `npm install` to install development dependencies, then use `npm run lint` to lint JavaScript and TypeScript, `npm run format` to format supported files, and `npm run format:check` to check formatting without writing changes. Oxfmt targets a 100-column print width; it may leave unbreakable content longer.
+
 ## Customize
 
-| File | What to change |
-| --- | --- |
-| [`manifest.json`](manifest.json) | Package checklist and known legacy resource paths |
-| [`preferences.json`](preferences.json) | Shared display and compaction defaults |
-| [`dotfiles/`](dotfiles/) | Custom extensions and system instructions |
+| File                                   | What to change                                    |
+| -------------------------------------- | ------------------------------------------------- |
+| [`manifest.json`](manifest.json)       | Package checklist and known legacy resource paths |
+| [`preferences.json`](preferences.json) | Shared display and compaction defaults            |
+| [`dotfiles/`](dotfiles/)               | Custom extensions and system instructions         |
 
 Setup fills missing preferences without replacing existing values. Package selections are saved per machine; existing package pins and filters are preserved. Use `pi config` to disable individual extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not remove it unless you explicitly check it in the delete step.
 
@@ -38,10 +42,7 @@ Setup also offers to delete every Pi resource in `~/.pi/agent` that it does not 
 
 ```json
 {
-  "keep": [
-    "extensions/herdr-agent-state.ts",
-    "extensions/machine-prompt.ts"
-  ]
+  "keep": ["extensions/herdr-agent-state.ts", "extensions/machine-prompt.ts"]
 }
 ```
 
@@ -55,6 +56,7 @@ Setup manages only the marked block in `<agent-dir>/APPEND_SYSTEM.md`:
 
 ```markdown
 <!-- BEGIN pi-agent-setup:shared -->
+
 Shared instructions from dotfiles/APPEND_SYSTEM.md
 <!-- END pi-agent-setup:shared -->
 

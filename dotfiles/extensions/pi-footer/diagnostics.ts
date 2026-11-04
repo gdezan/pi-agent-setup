@@ -22,76 +22,80 @@ const MAX_LOG_BYTES = 512 * 1024;
 const MAX_TRACKED = 20;
 
 export interface FooterProblem {
-	/** Stable identity, so a fault that repeats every frame is tracked once. */
-	key: string;
-	/** One display-safe line, e.g. `section "pi-footer:path" threw`. */
-	summary: string;
-	/** How many times this problem has been observed. */
-	count: number;
-	/** Most recent observation, for the log and for staleness checks. */
-	lastSeen: number;
+  /** Stable identity, so a fault that repeats every frame is tracked once. */
+  key: string;
+  /** One display-safe line, e.g. `section "pi-footer:path" threw`. */
+  summary: string;
+  /** How many times this problem has been observed. */
+  count: number;
+  /** Most recent observation, for the log and for staleness checks. */
+  lastSeen: number;
 }
 
 const TRACK_KEY = Symbol.for("pi.footer.diagnostics");
 type DiagnosticsState = { problems: Map<string, FooterProblem> };
 
-const state = (globalThis as typeof globalThis & Record<symbol, DiagnosticsState | undefined>)[TRACK_KEY] ??= {
-	problems: new Map(),
-};
+const state = ((globalThis as typeof globalThis & Record<symbol, DiagnosticsState | undefined>)[
+  TRACK_KEY
+] ??= {
+  problems: new Map(),
+});
 
 export function logPath(): string {
-	return join(getAgentDir(), "logs", LOG_FILE_NAME);
+  return join(getAgentDir(), "logs", LOG_FILE_NAME);
 }
 
 function appendLog(problem: FooterProblem, detail: unknown): void {
-	try {
-		const file = logPath();
-		mkdirSync(dirname(file), { recursive: true });
-		try {
-			if (statSync(file).size > MAX_LOG_BYTES) writeFileSync(file, "");
-		} catch {
-			// No log yet, so there is nothing to rotate.
-		}
-		appendFileSync(
-			file,
-			`${JSON.stringify({
-				timestamp: new Date().toISOString(),
-				summary: problem.summary,
-				count: problem.count,
-				detail: detail instanceof Error ? `${detail.name}: ${detail.message}` : String(detail),
-				stack: detail instanceof Error ? detail.stack : undefined,
-			})}\n`,
-		);
-	} catch {
-		// Diagnostics must never be the reason a render fails.
-	}
+  try {
+    const file = logPath();
+    mkdirSync(dirname(file), { recursive: true });
+    try {
+      if (statSync(file).size > MAX_LOG_BYTES) writeFileSync(file, "");
+    } catch {
+      // No log yet, so there is nothing to rotate.
+    }
+    appendFileSync(
+      file,
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        summary: problem.summary,
+        count: problem.count,
+        detail: detail instanceof Error ? `${detail.name}: ${detail.message}` : String(detail),
+        stack: detail instanceof Error ? detail.stack : undefined,
+      })}\n`,
+    );
+  } catch {
+    // Diagnostics must never be the reason a render fails.
+  }
 }
 
 /** Record a footer problem. Safe to call on every render; repeats are counted. */
 export function report(key: string, summary: string, detail?: unknown): void {
-	const existing = state.problems.get(key);
-	if (existing) {
-		existing.count += 1;
-		existing.lastSeen = Date.now();
-	return;
-	}
-	const problem: FooterProblem = { key, summary, count: 1, lastSeen: Date.now() };
-	state.problems.set(key, problem);
-// Keep the map bounded; drop the oldest observation rather than growing forever.
-	while (state.problems.size > MAX_TRACKED) {
-		const oldest = state.problems.keys().next();
-		if (oldest.done) break;
-		state.problems.delete(oldest.value);
-	}
-	appendLog(problem, detail);
+  const existing = state.problems.get(key);
+  if (existing) {
+    existing.count += 1;
+    existing.lastSeen = Date.now();
+    return;
+  }
+  const problem: FooterProblem = { key, summary, count: 1, lastSeen: Date.now() };
+  state.problems.set(key, problem);
+  // Keep the map bounded; drop the oldest observation rather than growing forever.
+  while (state.problems.size > MAX_TRACKED) {
+    const oldest = state.problems.keys().next();
+    if (oldest.done) break;
+    state.problems.delete(oldest.value);
+  }
+  appendLog(problem, detail);
 }
 
 /** Problems seen within the window, newest first. */
 export function activeProblems(windowMs = 60_000): FooterProblem[] {
-	const cutoff = Date.now() - windowMs;
-	return [...state.problems.values()].filter((problem) => problem.lastSeen >= cutoff).sort((a, b) => b.lastSeen - a.lastSeen);
+  const cutoff = Date.now() - windowMs;
+  return [...state.problems.values()]
+    .filter((problem) => problem.lastSeen >= cutoff)
+    .sort((a, b) => b.lastSeen - a.lastSeen);
 }
 
 export function clearProblems(): void {
-	state.problems.clear();
+  state.problems.clear();
 }

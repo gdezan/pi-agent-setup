@@ -1,6 +1,10 @@
 import { existsSync, readdirSync, lstatSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
-import { readToolkitJson, toolkitPackageIdentity, toolkitPackageSource } from "./toolkit-settings.mjs";
+import {
+  readToolkitJson,
+  toolkitPackageIdentity,
+  toolkitPackageSource,
+} from "./toolkit-settings.mjs";
 import { toolkitPathStat } from "./toolkit-files.mjs";
 
 export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
@@ -23,7 +27,13 @@ export function readToolkitKeep(agentDir) {
   const path = join(agentDir, TOOLKIT_KEEP_FILE);
   const keep = readToolkitJson(path, {}).keep;
   if (keep === undefined) return [];
-  if (!Array.isArray(keep) || keep.some((entry) => typeof entry !== "string" || !entry || entry.startsWith("/") || entry.includes(".."))) {
+  if (
+    !Array.isArray(keep) ||
+    keep.some(
+      (entry) =>
+        typeof entry !== "string" || !entry || entry.startsWith("/") || entry.includes(".."),
+    )
+  ) {
     throw new Error(`Invalid toolkit keep list: ${path}`);
   }
   return keep.map((entry) => entry.replace(/\/+$/, ""));
@@ -37,9 +47,11 @@ export function isKeptToolkitPath(relativePath, keep) {
 /** Guard a permanent delete against a configured local path escaping Pi's conventional resource roots. */
 export function assertToolkitCleanupPath(agentDir, path) {
   const parent = dirname(path);
-  if (relative(agentDir, path) === HERDR_AGENT_STATE_PATH ||
-      !["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
-      toolkitPathStat(parent)?.isSymbolicLink()) {
+  if (
+    relative(agentDir, path) === HERDR_AGENT_STATE_PATH ||
+    !["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
+    toolkitPathStat(parent)?.isSymbolicLink()
+  ) {
     throw new Error(`Unsafe toolkit cleanup path: ${path}`);
   }
 }
@@ -52,16 +64,34 @@ export function assertToolkitCleanupPath(agentDir, path) {
  * candidates, so the caller can say what it honoured instead of silently
  * dropping entries the person expected to see.
  */
-export function listToolkitCleanupCandidates({ agentDir, settings, manifest, selectedIds, keep = [] }) {
-  const selectedSources = new Set(manifest.packages.filter((entry) => selectedIds.includes(entry.id))
-    .map((entry) => toolkitPackageIdentity(entry.source, agentDir)));
+export function listToolkitCleanupCandidates({
+  agentDir,
+  settings,
+  manifest,
+  selectedIds,
+  keep = [],
+}) {
+  const selectedSources = new Set(
+    manifest.packages
+      .filter((entry) => selectedIds.includes(entry.id))
+      .map((entry) => toolkitPackageIdentity(entry.source, agentDir)),
+  );
   const ownPackage = toolkitPackageIdentity("toolkits/pi-agent-setup", agentDir);
-  const legacy = new Set(manifest.resources.flatMap((entry) => entry.legacy.map((path) =>
-    path.endsWith("/index.ts") || path.endsWith("/index.js") || path.endsWith("/SKILL.md") ? path.slice(0, path.lastIndexOf("/")) : path)));
+  const legacy = new Set(
+    manifest.resources.flatMap((entry) =>
+      entry.legacy.map((path) =>
+        path.endsWith("/index.ts") || path.endsWith("/index.js") || path.endsWith("/SKILL.md")
+          ? path.slice(0, path.lastIndexOf("/"))
+          : path,
+      ),
+    ),
+  );
   const candidates = [];
   const honoured = new Set();
   const packagePaths = new Set();
-  const resourceParents = new Set(["extensions", "skills", "local-packages"].map((kind) => join(agentDir, kind)));
+  const resourceParents = new Set(
+    ["extensions", "skills", "local-packages"].map((kind) => join(agentDir, kind)),
+  );
   for (const entry of settings.packages ?? []) {
     const source = toolkitPackageSource(entry);
     const identity = toolkitPackageIdentity(source, agentDir);
@@ -69,28 +99,54 @@ export function listToolkitCleanupCandidates({ agentDir, settings, manifest, sel
     const local = !/^(npm:|git:|https?:\/\/|ssh:\/\/)/.test(source);
     const path = local ? identity.slice("local:".length) : undefined;
     if (path) packagePaths.add(path);
-    if (local && (!resourceParents.has(dirname(path)) || toolkitPathStat(dirname(path))?.isSymbolicLink() ||
-      legacy.has(relative(agentDir, path)))) continue;
+    if (
+      local &&
+      (!resourceParents.has(dirname(path)) ||
+        toolkitPathStat(dirname(path))?.isSymbolicLink() ||
+        legacy.has(relative(agentDir, path)))
+    )
+      continue;
     // A keep entry is an agent-directory path, so it can only address a local package.
-    if (path && isKeptToolkitPath(relative(agentDir, path), keep)) { honoured.add(relative(agentDir, path)); continue; }
+    if (path && isKeptToolkitPath(relative(agentDir, path), keep)) {
+      honoured.add(relative(agentDir, path));
+      continue;
+    }
     if (path && relative(agentDir, path) === HERDR_AGENT_STATE_PATH) continue;
     candidates.push({ id: `package:${source}`, kind: "package", label: source, source, path });
   }
   for (const kind of ["extensions", "skills", "local-packages"]) {
     const directory = join(agentDir, kind);
-    if (!existsSync(directory) || lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) continue;
+    if (
+      !existsSync(directory) ||
+      lstatSync(directory).isSymbolicLink() ||
+      !lstatSync(directory).isDirectory()
+    )
+      continue;
     for (const name of readdirSync(directory).sort()) {
       const path = join(directory, name);
       const relativePath = relative(agentDir, path);
       if (legacy.has(relativePath) || packagePaths.has(path)) continue;
-      if (isKeptToolkitPath(relativePath, keep)) { honoured.add(relativePath); continue; }
+      if (isKeptToolkitPath(relativePath, keep)) {
+        honoured.add(relativePath);
+        continue;
+      }
       if (relativePath === HERDR_AGENT_STATE_PATH) continue;
       const stat = lstatSync(path);
-      const recognized = kind === "extensions" ?
-        stat.isFile() && /\.[cm]?[jt]s$/.test(name) || stat.isDirectory() && (existsSync(join(path, "index.ts")) || existsSync(join(path, "index.js"))) :
-        kind === "skills" ? stat.isDirectory() && existsSync(join(path, "SKILL.md")) :
-          stat.isDirectory() && existsSync(join(path, "package.json"));
-      if (recognized) candidates.push({ id: `resource:${relativePath}`, kind: "resource", label: relativePath, path });
+      const recognized =
+        kind === "extensions"
+          ? (stat.isFile() && /\.[cm]?[jt]s$/.test(name)) ||
+            (stat.isDirectory() &&
+              (existsSync(join(path, "index.ts")) || existsSync(join(path, "index.js"))))
+          : kind === "skills"
+            ? stat.isDirectory() && existsSync(join(path, "SKILL.md"))
+            : stat.isDirectory() && existsSync(join(path, "package.json"));
+      if (recognized)
+        candidates.push({
+          id: `resource:${relativePath}`,
+          kind: "resource",
+          label: relativePath,
+          path,
+        });
     }
   }
   return { candidates, kept: [...honoured].sort() };

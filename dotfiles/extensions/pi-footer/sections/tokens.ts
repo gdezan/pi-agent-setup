@@ -11,20 +11,23 @@ import type { FooterSectionVariant, Section } from "../types.ts";
 import { accumulateSessionStats, fmtCost, fmtTokens } from "../renderers.ts";
 
 export function createTokensSection(): Section {
-	return {
-		id: "pi-footer:tokens",
-		align: "right",
-		order: 10,
-		variants: ["compact", "minimal"],
+  return {
+    id: "pi-footer:tokens",
+    align: "right",
+    order: 10,
+    variants: ["compact", "minimal"],
 
-		render(ctx: ExtensionContext, theme: Theme, variant: FooterSectionVariant): string {
-			const entries = ctx.sessionManager.getBranch();
-			const stats = accumulateSessionStats(entries);
-			const tokenColor = stats.input === 0 && stats.output === 0 ? "muted" : "success";
-			const tokenText = theme.fg(tokenColor, `↑${fmtTokens(stats.input)} ↓${fmtTokens(stats.output)}`);
+    render(ctx: ExtensionContext, theme: Theme, variant: FooterSectionVariant): string {
+      const entries = ctx.sessionManager.getBranch();
+      const stats = accumulateSessionStats(entries);
+      const tokenColor = stats.input === 0 && stats.output === 0 ? "muted" : "success";
+      const tokenText = theme.fg(
+        tokenColor,
+        `↑${fmtTokens(stats.input)} ↓${fmtTokens(stats.output)}`,
+      );
 
-			if (variant === "minimal") return tokenText;
-			return `${tokenText} ${theme.fg("muted", fmtCost(stats.cost))}`;
-		},
-	};
+      if (variant === "minimal") return tokenText;
+      return `${tokenText} ${theme.fg("muted", fmtCost(stats.cost))}`;
+    },
+  };
 }
