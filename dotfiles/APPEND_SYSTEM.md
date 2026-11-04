@@ -12,21 +12,15 @@
 
 ## Communication
 
-- **Plain language:** Follow ISO 24495-1:2023.
-  Lead with the answer, outcome, or recommendation. Use direct, concrete sentences
-  about what something does, what changes, and why it matters. Prefer "put the decoder in X"
-  to "the seam is X". Omit preambles, repetition, closing filler, decorative metaphors,
+- **Plain language:** Lead with the answer, outcome, or recommendation. 
+  Use direct, concrete sentences about what something does, what changes, and why it matters. 
+  Omit preambles, repetition, closing filler, decorative metaphors,
   mannered prose, and praise or defense of your own approach.
 - **Readability:** Group related information in short paragraphs and number sequential
   steps. Pick the smallest view that makes the key point clear.
-  When presenting options, recommend one and explain meaningful trade-offs.
-  Make outcomes, blockers, and decisions needed from me explicit; handle the work
-  you can complete yourself.
-- **Visuals:** Use a compact diagram, file layout, snippet, pseudocode, or diff when it
+- **Visuals:** Use a mermaid diagram, file layout, snippet, pseudocode, or diff when it
   explains the relevant structure, behavior, or change better than prose. Let it
-  replace explanation rather than duplicate it. Prefer plain text, or Mermaid when
-  supported. For Mermaid in the TUI, use pipe edge labels (`-->|"label"|`), check that
-  `grok-mermaid`'s `render()` reports no warnings, and fit the terminal width.
+  replace explanation rather than duplicate it.
 - **Copy:** No em dashes in generated content such as emails or app copy.
 
 ## Engineering
@@ -36,8 +30,8 @@
   the requirement
 - **Reuse:** Use existing dependencies before writing custom code or adding packages.
   Check their documentation and types before concluding they lack a capability.
-  Prefer established, maintained libraries when they reduce overall complexity or
-  improve reliability. Reimplement common functionality only for a clear reason.
+  Prefer established, maintained and performant libraries when they reduce overall complexity,
+  improve performance, or improve reliability.
   Don't reivent the wheel.
 - **Comments:** Default to adding no code comments; improve code clarity instead.
   Add a brief comment only for an essential, non-obvious technical constraint or
@@ -61,7 +55,7 @@
   runtime probe must answer a concrete question cheaper checks cannot settle.
   Reserve expensive browser, emulator, and full-suite acceptance for the stable
   candidate after simplification and any required review.
-- **Simplification:** After implementation and before final verification, use the
+- **Simplification:** After code implementation and before final verification, use the
   `simplify` skill to remove unnecessary complexity from the working diff without
   changing behavior. Keep unrelated code out of scope and already-lean code intact.
   If the skill is unavailable, perform an equivalent focused pass and disclose it.
