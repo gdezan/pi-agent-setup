@@ -1,5 +1,5 @@
 /**
- * Names unnamed sessions once after their first settled reply.
+ * Names unnamed sessions once as soon as their first user message starts.
  * Model selection is shared with next-prompt through `utilityModel`.
  * `sessionAutoname.enabled` controls automatic naming; /name sets manual names.
  */
@@ -68,10 +68,8 @@ type NamingOutcome =
 
 export type SessionAutoNameInput = {
   enabled: boolean;
-  aborted: boolean;
   attempted: boolean;
   sessionName: string | undefined;
-  hasAssistantReply: boolean;
   hasUserText: boolean;
 };
 
@@ -89,21 +87,9 @@ export function extractActiveBranchUserText(entries: readonly SessionEntryLike[]
   return messages.join("\n\n");
 }
 
-/** Reports whether the active branch already holds an assistant reply. */
-export function containsAssistantReply(entries: readonly SessionEntryLike[]): boolean {
-  return entries.some((entry) => entry.type === "message" && entry.message?.role === "assistant");
-}
-
-/** Decides whether a settled run should name its session in the background. */
+/** Decides whether a user message should start background session naming. */
 export function shouldAutoNameSession(input: SessionAutoNameInput): boolean {
-  return (
-    input.enabled &&
-    !input.aborted &&
-    !input.attempted &&
-    !input.sessionName &&
-    input.hasAssistantReply &&
-    input.hasUserText
-  );
+  return input.enabled && !input.attempted && !input.sessionName && input.hasUserText;
 }
 
 function extractUserMessageText(content: unknown): string {
@@ -636,22 +622,25 @@ async function nameCurrentSession(
 export default function sessionAutoname(pi: ExtensionAPI): void {
   const attemptedSessionIds = new Set<string>();
   const inFlightNaming = new Map<string, AbortController>();
-  pi.on("agent_settled", (event, ctx) => {
+  pi.on("message_start", (event, ctx) => {
+    if (event.message.role !== "user") return;
+
     const sessionId = ctx.sessionManager.getSessionId();
     if (inFlightNaming.has(sessionId)) return;
 
     try {
       const settings = loadSessionAutonameConfig(ctx);
-      const branch = ctx.sessionManager.getBranch();
-      const userText = extractActiveBranchUserText(branch);
+      // message_start fires before the current user message is persisted.
+      const userText = extractActiveBranchUserText([
+        ...ctx.sessionManager.getBranch(),
+        { type: "message", message: event.message },
+      ]);
 
       if (
         !shouldAutoNameSession({
           enabled: settings.enabled,
-          aborted: event.aborted,
           attempted: attemptedSessionIds.has(sessionId),
           sessionName: pi.getSessionName(),
-          hasAssistantReply: containsAssistantReply(branch),
           hasUserText: Boolean(userText),
         })
       ) {

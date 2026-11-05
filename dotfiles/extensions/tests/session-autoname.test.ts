@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  containsAssistantReply,
   createSessionNamingExcerpt,
   extractActiveBranchUserText,
   normalizeSessionNamingTitle,
@@ -11,10 +10,8 @@ import {
 
 const autoNameInput: SessionAutoNameInput = {
   enabled: true,
-  aborted: false,
   attempted: false,
   sessionName: undefined,
-  hasAssistantReply: true,
   hasUserText: true,
 };
 
@@ -38,31 +35,11 @@ test("extracts raw user text and ignores assistant and image content", () => {
   );
 });
 
-test("detects an assistant reply on the branch", () => {
-  assert.equal(
-    containsAssistantReply([
-      { type: "message", message: { role: "user", content: "First" } },
-      { type: "session_info" },
-      { type: "message", message: { role: "toolResult", content: "Ignore" } },
-    ]),
-    false,
-  );
-  assert.equal(
-    containsAssistantReply([
-      { type: "message", message: { role: "user", content: "First" } },
-      { type: "message", message: { role: "assistant", content: "Reply" } },
-    ]),
-    true,
-  );
-});
-
-test("auto names only the first settled reply of an unnamed, enabled session", () => {
+test("auto names only the first user text of an unnamed, enabled session", () => {
   assert.equal(shouldAutoNameSession(autoNameInput), true);
   assert.equal(shouldAutoNameSession({ ...autoNameInput, enabled: false }), false);
-  assert.equal(shouldAutoNameSession({ ...autoNameInput, aborted: true }), false);
   assert.equal(shouldAutoNameSession({ ...autoNameInput, attempted: true }), false);
   assert.equal(shouldAutoNameSession({ ...autoNameInput, sessionName: "Manual" }), false);
-  assert.equal(shouldAutoNameSession({ ...autoNameInput, hasAssistantReply: false }), false);
   assert.equal(shouldAutoNameSession({ ...autoNameInput, hasUserText: false }), false);
 });
 

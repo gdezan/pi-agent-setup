@@ -193,6 +193,10 @@ hidden reasoning. Requests use a 512-token output budget including reasoning, a 
 and no retries. No obvious next step can mean no suggestion. AutoName retains its separate user-text
 excerpt and naming limits.
 
+AutoName starts a single background naming request as soon as the first user message reaches the
+agent, without waiting for an assistant reply or delaying the conversation. The title appears when
+the utility model responds; existing or manually assigned names are preserved.
+
 `/next-prompt` reports the last completed suggestion request in the current session, including
 provider-reported output tokens (which include reasoning) and estimated token cost. It does not add
 this background usage to Pi's conversation totals or represent subscription billing. Suggestion
