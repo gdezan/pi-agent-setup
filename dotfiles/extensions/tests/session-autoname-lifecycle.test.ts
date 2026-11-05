@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import sessionAutoname from "../session-autoname.ts";
+import sessionAutoname from "../gd-session-autoname/session-autoname.ts";
 
 const response = (text = "faster session naming", stopReason = "stop") => ({
   role: "assistant",

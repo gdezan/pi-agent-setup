@@ -13,7 +13,7 @@ test("native Pi loads the questionnaire as a standalone local package", (t) => {
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const agentDir = join(base, "agent");
   mkdirSync(agentDir);
-  const packagePath = join(root, "dotfiles/extensions/ask-user-question");
+  const packagePath = join(root, "dotfiles/extensions/gd-ask-user-question");
   writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [packagePath] }));
   const sdk = pathToFileURL(
     join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
@@ -49,12 +49,12 @@ for (const legacy of [false, true]) {
     mkdirSync(home);
     mkdirSync(agentDir);
     if (legacy) {
-      cpSync(join(root, "dotfiles/extensions"), join(agentDir, "extensions"), {
+      mkdirSync(join(agentDir, "extensions"));
+      cpSync(join(root, "dotfiles/extensions/gd-footer"), join(agentDir, "extensions/pi-footer"), {
         recursive: true,
-        filter: (path) => !path.startsWith(join(root, "dotfiles/extensions/ask-user-question")),
       });
       cpSync(
-        join(root, "dotfiles/extensions/ask-user-question"),
+        join(root, "dotfiles/extensions/gd-ask-user-question"),
         join(agentDir, "local-packages/ask-user-question"),
         { recursive: true },
       );
@@ -107,9 +107,11 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.some((extension) =>
         extension.resolvedPath.includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
-      for (const suffix of ['pi-footer/index.ts', 'favorites-cycle.ts', 'provider-usage.ts',
-        'session-autoname.ts', 'pi-cache-observer/index.ts',
-        'ask-user-question/index.ts', 'next-prompt/index.ts']) {
+      assert.equal(loader.getExtensions().extensions.length, 8);
+      for (const suffix of ['gd-footer/index.ts', 'gd-favorites-cycle/index.ts',
+        'gd-provider-usage/index.ts', 'gd-session-autoname/index.ts',
+        'gd-cache-observer/index.ts', 'gd-ask-user-question/index.ts',
+        'gd-next-prompt/index.ts', 'gd-mermaid-images/index.js']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
           extension.resolvedPath.endsWith('/' + suffix)).length, 1, suffix);
       }

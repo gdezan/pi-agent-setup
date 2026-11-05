@@ -31,7 +31,7 @@ def run(mode, fixture):
         "quietStartup": True, "enableInstallTelemetry": False, "enableAnalytics": False,
         "markdown": {"mermaid": "off"}, "tuiMode": mode,
         "theme": os.environ.get("PI_MERMAID_THEME", "dark"),
-        "packages": [{"source": PACKAGE, "extensions": ["dotfiles/extensions/mermaid-images/index.js"]}] if PACKAGE else [],
+        "packages": [{"source": PACKAGE, "extensions": ["dotfiles/extensions/gd-mermaid-images/index.js"]}] if PACKAGE else [],
     }))
     env = {key: value for key, value in os.environ.items() if not key.startswith(("HERDR_", "PI_CURSOR_"))}
     env.update(PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE="1", PI_TELEMETRY="0",

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   buildNextPromptContext,
   normalizeNextPromptSuggestion,
-} from "../next-prompt/next-prompt-context.ts";
+} from "../gd-next-prompt/next-prompt-context.ts";
 
 const user = (text: string) => ({ type: "message", message: { role: "user", content: text } });
 const assistant = (text: string) => ({

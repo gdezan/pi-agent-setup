@@ -13,18 +13,18 @@ import {
   type ExtensionCommandContext,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { configureUtilityModel } from "./utility-model/utility-model-command.ts";
+import { configureUtilityModel } from "../utility-model/utility-model-command.ts";
 import {
   parseUtilityModelConfig,
   readUtilitySettings,
   utilitySettingsObject,
   type UtilityModelConfig,
   type UtilityThinkingLevel,
-} from "./utility-model/utility-model-config.ts";
+} from "../utility-model/utility-model-config.ts";
 import {
   requestUtilityResponse,
   resolveUtilityModel,
-} from "./utility-model/utility-model-request.ts";
+} from "../utility-model/utility-model-request.ts";
 
 const MAX_SESSION_NAMING_CHARS = 8_000;
 const SESSION_NAMING_HEAD_RATIO = 0.25;

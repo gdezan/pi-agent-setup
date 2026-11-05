@@ -55,7 +55,7 @@ class UtilityModelTuiTest(unittest.TestCase):
         argv = ["node", str(ROOT / "node_modules/@earendil-works/pi-coding-agent/dist/cli.js"),
                 "--no-extensions", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes",
                 "--offline", "--no-approve", "--no-session", "--provider", "utility-test", "--model", "conversation", "--thinking", "off"]
-        for path in ["tests/fixtures/utility-model-provider.ts", "pi-footer/index.ts", "favorites-cycle.ts", "session-autoname.ts", "next-prompt/index.ts"]:
+        for path in ["tests/fixtures/utility-model-provider.ts", "gd-footer/index.ts", "gd-favorites-cycle/index.ts", "gd-session-autoname/index.ts", "gd-next-prompt/index.ts"]:
             argv += ["-e", str(ROOT / "dotfiles/extensions" / path)]
         argv += ["-e", str(MODEL_PICK)]
         self.tmux("new-session", "-d", "-s", "check", "-x", "100", "-y", "32", "-c", str(project), "exec " + shlex.join(argv))

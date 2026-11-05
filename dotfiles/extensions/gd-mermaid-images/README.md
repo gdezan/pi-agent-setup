@@ -69,7 +69,7 @@ is always preserved if rendering is unavailable.
 From the repository root:
 
 ```sh
-npm ci --prefix dotfiles/extensions/mermaid-images --ignore-scripts --legacy-peer-deps
+npm ci --prefix dotfiles/extensions/gd-mermaid-images --ignore-scripts --legacy-peer-deps
 npm run test:mermaid
 ```
 
@@ -92,7 +92,7 @@ ANSI captures and `pty-result.json`. To inspect an actual terminal, use those pa
 PI_CODING_AGENT_DIR=/absolute/artifact/directory/agent-fullscreen \
 pi --offline --no-approve --no-extensions --no-skills --no-context-files \
   --no-prompt-templates --no-themes --no-mcp \
-  -e "$PWD/dotfiles/extensions/mermaid-images/index.js" \
+  -e "$PWD/dotfiles/extensions/gd-mermaid-images/index.js" \
   --session /absolute/artifact/directory/session-branching.jsonl
 ```
 

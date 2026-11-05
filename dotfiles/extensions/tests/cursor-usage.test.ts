@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { fetchCursorUsage, parseCursorUsage } from "../provider-usage/cursor.ts";
-import { UsagePopup } from "../provider-usage/popup.ts";
+import { fetchCursorUsage, parseCursorUsage } from "../gd-provider-usage/cursor.ts";
+import { UsagePopup } from "../gd-provider-usage/popup.ts";
 
 const usage = {
   billingCycleStart: "2026-09-26T21:19:26.000Z",
@@ -97,7 +97,7 @@ test("Cursor desktop quota flows through refresh, footer and popup without crede
       },
       { label: "Other", usedPercent: 26, resetAt: 1793049566, windowSeconds: 2592000 },
     ]);
-    const { default: providerUsage } = await import("../provider-usage.ts");
+    const { default: providerUsage } = await import("../gd-provider-usage/provider-usage.ts");
     const handlers = new Map<string, Function>();
     const commands = new Map<string, { handler: Function }>();
     let status = "";

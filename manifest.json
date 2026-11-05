@@ -4,50 +4,60 @@
     {
       "id": "footer",
       "kind": "extensions",
-      "path": "dotfiles/extensions/pi-footer/index.ts",
-      "legacy": ["extensions/pi-footer/index.ts"]
+      "path": "dotfiles/extensions/gd-footer/index.ts",
+      "legacy": ["extensions/pi-footer/index.ts"],
+      "previousPaths": ["dotfiles/extensions/pi-footer/index.ts"]
     },
     {
       "id": "favorites-cycle",
       "kind": "extensions",
-      "path": "dotfiles/extensions/favorites-cycle.ts",
-      "legacy": []
+      "path": "dotfiles/extensions/gd-favorites-cycle/index.ts",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/favorites-cycle.ts"]
     },
     {
       "id": "provider-usage",
       "kind": "extensions",
-      "path": "dotfiles/extensions/provider-usage.ts",
-      "legacy": ["extensions/provider-usage.ts"]
+      "path": "dotfiles/extensions/gd-provider-usage/index.ts",
+      "legacy": ["extensions/provider-usage.ts"],
+      "previousPaths": ["dotfiles/extensions/provider-usage.ts"]
     },
     {
       "id": "next-prompt",
       "kind": "extensions",
-      "path": "dotfiles/extensions/next-prompt/index.ts",
-      "legacy": []
+      "path": "dotfiles/extensions/gd-next-prompt/index.ts",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/next-prompt/index.ts"]
     },
     {
       "id": "session-autoname",
       "kind": "extensions",
-      "path": "dotfiles/extensions/session-autoname.ts",
-      "legacy": ["extensions/session-autoname.ts"]
+      "path": "dotfiles/extensions/gd-session-autoname/index.ts",
+      "legacy": ["extensions/session-autoname.ts"],
+      "previousPaths": ["dotfiles/extensions/session-autoname.ts"]
     },
     {
       "id": "cache-observer",
       "kind": "extensions",
-      "path": "dotfiles/extensions/pi-cache-observer/index.ts",
-      "legacy": ["extensions/pi-cache-observer/index.ts"]
+      "path": "dotfiles/extensions/gd-cache-observer/index.ts",
+      "legacy": ["extensions/pi-cache-observer/index.ts"],
+      "previousPaths": ["dotfiles/extensions/pi-cache-observer/index.ts"]
     },
     {
       "id": "mermaid-images",
       "kind": "extensions",
-      "path": "dotfiles/extensions/mermaid-images/index.js",
-      "legacy": []
+      "path": "dotfiles/extensions/gd-mermaid-images/index.js",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/mermaid-images/index.js"]
     },
     {
       "id": "ask-user-question",
       "kind": "extensions",
-      "path": "dotfiles/extensions/ask-user-question/index.ts",
-      "previousPaths": ["dotfiles/local-packages/ask-user-question/index.ts"],
+      "path": "dotfiles/extensions/gd-ask-user-question/index.ts",
+      "previousPaths": [
+        "dotfiles/extensions/ask-user-question/index.ts",
+        "dotfiles/local-packages/ask-user-question/index.ts"
+      ],
       "legacy": ["local-packages/ask-user-question/index.ts"],
       "packageName": "@local/ask-user-question"
     }
@@ -78,7 +88,11 @@
       "source": "npm:pi-blackhole",
       "description": "Session context and recall tools"
     },
-    { "id": "fff", "source": "npm:@ff-labs/pi-fff", "description": "Fast local code search" },
+    {
+      "id": "fff",
+      "source": "npm:@ff-labs/pi-fff",
+      "description": "Fast local code search"
+    },
     {
       "id": "web-search",
       "source": "npm:pi-web-search",

@@ -2,14 +2,14 @@ import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Footer } from "./pi-footer/footer.ts";
-import { fetchAntigravityUsage } from "./provider-usage/antigravity.ts";
-import { fetchClaudeUsage } from "./provider-usage/claude.ts";
-import { fetchCursorUsage } from "./provider-usage/cursor.ts";
-import { fetchOpenaiPlanPayload } from "./provider-usage/openai.ts";
-import { USAGE_POPUP_WIDTH, UsagePopup } from "./provider-usage/popup.ts";
-import type { AuthEntry, Snapshot, Window } from "./provider-usage/types.ts";
-import { countdown, windowSecondsFor } from "./provider-usage/windows.ts";
+import { Footer } from "../gd-footer/footer.ts";
+import { fetchAntigravityUsage } from "./antigravity.ts";
+import { fetchClaudeUsage } from "./claude.ts";
+import { fetchCursorUsage } from "./cursor.ts";
+import { fetchOpenaiPlanPayload } from "./openai.ts";
+import { USAGE_POPUP_WIDTH, UsagePopup } from "./popup.ts";
+import type { AuthEntry, Snapshot, Window } from "./types.ts";
+import { countdown, windowSecondsFor } from "./windows.ts";
 
 type ProviderSpec = {
   /** Unique id used for status/footer keys and command names. */

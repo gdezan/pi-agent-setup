@@ -7,7 +7,7 @@ import {
   type ExtensionAPI,
   type ModelRegistry,
 } from "@earendil-works/pi-coding-agent";
-import providerUsage from "../provider-usage.ts";
+import providerUsage from "../gd-provider-usage/provider-usage.ts";
 
 for (const lifecycle of ["replacement", "reload", "restart"] as const) {
   test(`provider usage stops polling after session ${lifecycle}`, (t) => {

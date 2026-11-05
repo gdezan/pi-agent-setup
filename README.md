@@ -5,7 +5,8 @@ packages during setup; model choices, credentials, and session history stay loca
 
 Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session
 naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, and
-[inline Mermaid images](dotfiles/extensions/mermaid-images/README.md) in Kitty-compatible terminals.
+[inline Mermaid images](dotfiles/extensions/gd-mermaid-images/README.md) in Kitty-compatible
+terminals.
 
 ## Install
 
@@ -51,8 +52,8 @@ formatting without writing changes. Oxfmt targets a 100-column print width; it m
 content longer.
 
 For Mermaid checks, install its runtime dependencies with
-`npm ci --prefix dotfiles/extensions/mermaid-images --ignore-scripts --legacy-peer-deps`, then run
-`npm run test:mermaid`. This includes disposable regular/fullscreen Pi PTY checks with no model
+`npm ci --prefix dotfiles/extensions/gd-mermaid-images --ignore-scripts --legacy-peer-deps`, then
+run `npm run test:mermaid`. This includes disposable regular/fullscreen Pi PTY checks with no model
 calls.
 
 ## Customize

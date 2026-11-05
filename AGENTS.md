@@ -1,7 +1,7 @@
 # Ownership and change scope
 
 Limit extension changes to local extension resources maintained in this project, such as
-`dotfiles/extensions/pi-footer/`. These are our source files, not externally installed extension
+`dotfiles/extensions/gd-footer/`. These are our source files, not externally installed extension
 packages. See `package.json` and `manifest.json` for the resource declarations and external package
 list.
 

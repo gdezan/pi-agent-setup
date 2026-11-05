@@ -4,7 +4,7 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { Footer } from "../pi-footer/footer.ts";
+import { Footer } from "../gd-footer/footer.ts";
 import { AggregateStore } from "./aggregates.ts";
 import { CacheAlertDeduplicator } from "./alerts.ts";
 import { loadProjectConfig } from "./config.ts";

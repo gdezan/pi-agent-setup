@@ -1,6 +1,6 @@
 import type { ExtensionContext, Theme, ThemeColor } from "@earendil-works/pi-coding-agent";
-import { fmtTokens } from "../pi-footer/renderers.ts";
-import type { FooterSectionVariant } from "../pi-footer/types.ts";
+import { fmtTokens } from "../gd-footer/renderers.ts";
+import type { FooterSectionVariant } from "../gd-footer/types.ts";
 import type {
   CacheObservation,
   CacheSessionTotals,
