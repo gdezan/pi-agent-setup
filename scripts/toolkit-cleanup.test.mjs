@@ -196,26 +196,32 @@ test("the keep list also covers a local package registered in settings", (t) => 
   assert.deepEqual(kept, ["extensions/custom"]);
 });
 
-test("herdr agent state is never offered for cleanup, even without a keep entry", (t) => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-keep-herdr-state-"));
-  t.after(() => rmSync(agentDir, { recursive: true, force: true }));
-  const extensionPath = join(agentDir, "extensions/herdr-agent-state.ts");
-  mkdirSync(dirname(extensionPath), { recursive: true });
-  writeFileSync(extensionPath, "export default function herdrAgentState() {}\n");
-  for (const packages of [[], ["extensions/herdr-agent-state.ts"], [extensionPath]]) {
-    for (const keep of [undefined, []]) {
-      const { candidates } = listToolkitCleanupCandidates({
-        agentDir,
-        settings: { packages },
-        manifest: { packages: [], resources: [] },
-        selectedIds: [],
-        keep,
-      });
-      assert.deepEqual(candidates, []);
+for (const relativePath of [
+  "extensions/herdr-agent-state.ts",
+  "extensions/atuin.ts",
+  "extensions/scoutr-stream.ts",
+]) {
+  test(`${relativePath} is never offered for cleanup, even without a keep entry`, (t) => {
+    const agentDir = mkdtempSync(join(tmpdir(), "pi-cleanup-protected-"));
+    t.after(() => rmSync(agentDir, { recursive: true, force: true }));
+    const extensionPath = join(agentDir, relativePath);
+    mkdirSync(dirname(extensionPath), { recursive: true });
+    writeFileSync(extensionPath, "export default function protectedExtension() {}\n");
+    for (const packages of [[], [relativePath], [extensionPath]]) {
+      for (const keep of [undefined, []]) {
+        const { candidates } = listToolkitCleanupCandidates({
+          agentDir,
+          settings: { packages },
+          manifest: { packages: [], resources: [] },
+          selectedIds: [],
+          keep,
+        });
+        assert.deepEqual(candidates, []);
+      }
     }
-  }
-  assert.throws(
-    () => assertToolkitCleanupPath(agentDir, extensionPath),
-    /Unsafe toolkit cleanup path/,
-  );
-});
+    assert.throws(
+      () => assertToolkitCleanupPath(agentDir, extensionPath),
+      /Unsafe toolkit cleanup path/,
+    );
+  });
+}

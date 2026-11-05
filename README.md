@@ -68,9 +68,12 @@ machine; existing package pins and filters are preserved. Use `pi config` to dis
 extensions or skills, and `pi remove` to uninstall packages—deselecting one during setup does not
 remove it unless you explicitly check it in the delete step.
 
-Setup also offers to delete every Pi resource in `~/.pi/agent` that it does not own, which is wrong
-for anything you maintain by hand there. List those once in `~/.pi/agent/toolkit-keep.json` and
-setup stops offering them:
+Setup excludes `extensions/herdr-agent-state.ts`, `extensions/atuin.ts`, and
+`extensions/scoutr-stream.ts` from cleanup on every machine, even without a local keep list.
+
+Setup also offers to delete other Pi resources in `~/.pi/agent` that it does not own. For anything
+you maintain by hand there, list it once in `~/.pi/agent/toolkit-keep.json` and setup stops offering
+it:
 
 ```json
 {

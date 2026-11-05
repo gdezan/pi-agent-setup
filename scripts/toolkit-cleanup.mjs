@@ -8,7 +8,11 @@ import {
 import { toolkitPathStat } from "./toolkit-files.mjs";
 
 export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
-const HERDR_AGENT_STATE_PATH = "extensions/herdr-agent-state.ts";
+const PROTECTED_TOOLKIT_PATHS = new Set([
+  "extensions/herdr-agent-state.ts",
+  "extensions/atuin.ts",
+  "extensions/scoutr-stream.ts",
+]);
 
 /**
  * Read the machine-local keep list.
@@ -21,7 +25,7 @@ const HERDR_AGENT_STATE_PATH = "extensions/herdr-agent-state.ts";
  * declining the same prompt on every run.
  *
  * An entry is a path relative to the agent directory. A directory entry keeps
- * everything beneath it. The Herdr integration is protected independently of this list.
+ * everything beneath it. Herdr agent state, Atuin, and Scoutr Stream are protected independently of this list.
  */
 export function readToolkitKeep(agentDir) {
   const path = join(agentDir, TOOLKIT_KEEP_FILE);
@@ -48,7 +52,7 @@ export function isKeptToolkitPath(relativePath, keep) {
 export function assertToolkitCleanupPath(agentDir, path) {
   const parent = dirname(path);
   if (
-    relative(agentDir, path) === HERDR_AGENT_STATE_PATH ||
+    PROTECTED_TOOLKIT_PATHS.has(relative(agentDir, path)) ||
     !["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
     toolkitPathStat(parent)?.isSymbolicLink()
   ) {
@@ -59,7 +63,7 @@ export function assertToolkitCleanupPath(agentDir, path) {
 /**
  * List unselected configured packages and unrelated loose Pi resources.
  *
- * Excludes the Herdr integration, managed legacy paths, and anything on the machine-local keep list.
+ * Excludes protected extensions, managed legacy paths, and anything on the machine-local keep list.
  * Returns the kept paths that actually matched a candidate alongside the
  * candidates, so the caller can say what it honoured instead of silently
  * dropping entries the person expected to see.
@@ -111,7 +115,7 @@ export function listToolkitCleanupCandidates({
       honoured.add(relative(agentDir, path));
       continue;
     }
-    if (path && relative(agentDir, path) === HERDR_AGENT_STATE_PATH) continue;
+    if (path && PROTECTED_TOOLKIT_PATHS.has(relative(agentDir, path))) continue;
     candidates.push({ id: `package:${source}`, kind: "package", label: source, source, path });
   }
   for (const kind of ["extensions", "skills", "local-packages"]) {
@@ -130,7 +134,7 @@ export function listToolkitCleanupCandidates({
         honoured.add(relativePath);
         continue;
       }
-      if (relativePath === HERDR_AGENT_STATE_PATH) continue;
+      if (PROTECTED_TOOLKIT_PATHS.has(relativePath)) continue;
       const stat = lstatSync(path);
       const recognized =
         kind === "extensions"
