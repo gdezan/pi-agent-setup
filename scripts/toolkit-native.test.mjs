@@ -8,26 +8,98 @@ import test from "node:test";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
+test("native Pi loads the questionnaire as a standalone local package", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "pi-question-standalone-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const agentDir = join(base, "agent");
+  mkdirSync(agentDir);
+  const packagePath = join(root, "dotfiles/extensions/gd-ask-user-question");
+  writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [packagePath] }));
+  const sdk = pathToFileURL(
+    join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
+  ).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `
+    import assert from 'node:assert/strict';
+    import { DefaultResourceLoader } from ${JSON.stringify(sdk)};
+    const loader = new DefaultResourceLoader({cwd:${JSON.stringify(join(base, "project"))}, agentDir:${JSON.stringify(agentDir)}, noContextFiles:true});
+    await loader.reload();
+    assert.deepEqual(loader.getExtensions().errors, []);
+    assert.deepEqual(loader.getExtensions().extensions.map((extension) => extension.resolvedPath), [${JSON.stringify(join(packagePath, "index.ts"))}]);
+  `,
+    ],
+    {
+      env: { ...process.env, HOME: base, PI_CODING_AGENT_DIR: agentDir, PI_OFFLINE: "1" },
+      encoding: "utf8",
+    },
+  );
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
 for (const legacy of [false, true]) {
-  test(`native Pi loads toolkit extensions and skills with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
+  test(`native Pi loads toolkit extensions with ${legacy ? "migrated legacy" : "fresh copied"} resources`, (t) => {
     const base = mkdtempSync(join(tmpdir(), "pi-wizard-native-"));
     t.after(() => rmSync(base, { recursive: true, force: true }));
     const agentDir = join(base, "agent");
     const home = join(base, "home");
     mkdirSync(home);
     mkdirSync(agentDir);
+    mkdirSync(join(base, ".git"));
     if (legacy) {
-      for (const kind of ["extensions", "skills", "local-packages"]) cpSync(join(root, "dotfiles", kind), join(agentDir, kind), { recursive: true });
-      writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ defaultModel: "keep-local-model", theme: "light",
-        packages: ["local-packages/ask-user-question",
-          { source: "toolkits/pi-agent-setup", extensions: ["+dotfiles/extensions/favorites-cycle.ts"] }] }));
+      mkdirSync(join(agentDir, "extensions"));
+      cpSync(join(root, "dotfiles/extensions/gd-footer"), join(agentDir, "extensions/pi-footer"), {
+        recursive: true,
+      });
+      cpSync(
+        join(root, "dotfiles/extensions/gd-ask-user-question"),
+        join(agentDir, "local-packages/ask-user-question"),
+        { recursive: true },
+      );
+      writeFileSync(
+        join(agentDir, "settings.json"),
+        JSON.stringify({
+          defaultModel: "keep-local-model",
+          theme: "light",
+          packages: [
+            "local-packages/ask-user-question",
+            {
+              source: "toolkits/pi-agent-setup",
+              extensions: ["+dotfiles/extensions/favorites-cycle.ts"],
+            },
+          ],
+        }),
+      );
     }
-    const env = { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, ".config"), XDG_CACHE_HOME: join(home, ".cache"),
-      PI_CODING_AGENT_DIR: agentDir, PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"), PI_OFFLINE: "1", PI_TELEMETRY: "0" };
-    const setup = spawnSync(process.execPath, [join(root, "setup.mjs"), "--skip-packages", "--conflicts", "keep", "--json"], { env, encoding: "utf8" });
+    const env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      XDG_CONFIG_HOME: join(home, ".config"),
+      XDG_CACHE_HOME: join(home, ".cache"),
+      PI_CODING_AGENT_DIR: agentDir,
+      PI_CODING_AGENT_SESSION_DIR: join(agentDir, "sessions"),
+      PI_OFFLINE: "1",
+      PI_TELEMETRY: "0",
+    };
+    const setup = spawnSync(
+      process.execPath,
+      [join(root, "setup.mjs"), "--skip-packages", "--conflicts", "keep", "--json"],
+      { env, encoding: "utf8" },
+    );
     assert.equal(setup.status, 0, setup.stdout + setup.stderr);
-    const sdk = pathToFileURL(join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js")).href;
-    const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    const sdk = pathToFileURL(
+      join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
+    ).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
       import assert from 'node:assert/strict';
       import {sep} from 'node:path';
       import {DefaultResourceLoader} from ${JSON.stringify(sdk)};
@@ -37,22 +109,37 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.some((extension) =>
         extension.resolvedPath.split(sep).join('/').includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
-      for (const suffix of ['pi-footer/index.ts', 'favorites-cycle.ts', 'provider-usage.ts',
-        'session-autoname.ts', 'pi-cache-observer/index.ts',
-        'ask-user-question/index.ts', 'next-prompt/index.ts']) {
+      assert.equal(loader.getExtensions().extensions.length, 8);
+      for (const suffix of ['gd-footer/index.ts', 'gd-favorites-cycle/index.ts',
+        'gd-provider-usage/index.ts', 'gd-session-autoname/index.ts',
+        'gd-cache-observer/index.ts', 'gd-ask-user-question/index.ts',
+        'gd-next-prompt/index.ts', 'gd-mermaid-images/index.js']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
           extension.resolvedPath.split(sep).join('/').endsWith('/' + suffix)).length, 1, suffix);
       }
-      assert.equal(loader.getSkills().skills.filter((skill) => skill.name === 'impeccable').length, 1);
-      assert.equal(loader.getSkills().skills.some((skill) => skill.name === 'analyze-sessions'), false);
-    `], { env, encoding: "utf8" });
+      assert.deepEqual(loader.getSkills().skills, []);
+    `,
+      ],
+      { env, encoding: "utf8" },
+    );
     assert.equal(result.status, 0, result.stdout + result.stderr);
     if (legacy) {
-      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel, "keep-local-model");
-      assert.equal(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
-        String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/")), false);
+      assert.equal(
+        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel,
+        "keep-local-model",
+      );
+      assert.equal(
+        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
+          String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/"),
+        ),
+        false,
+      );
     }
-    const rerun = spawnSync(process.execPath, [join(root, "setup.mjs"), "--skip-packages", "--json"], { env, encoding: "utf8" });
+    const rerun = spawnSync(
+      process.execPath,
+      [join(root, "setup.mjs"), "--skip-packages", "--json"],
+      { env, encoding: "utf8" },
+    );
     assert.equal(rerun.status, 0, rerun.stdout + rerun.stderr);
     assert.equal(JSON.parse(rerun.stdout).status, "unchanged");
   });

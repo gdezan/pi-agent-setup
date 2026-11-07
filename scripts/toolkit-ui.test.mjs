@@ -7,7 +7,9 @@ const stripAnsi = (value) => value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "");
 test("diff output sanitizes terminal controls before applying diff colors", () => {
   const current = "safe current\n";
   const proposed = "safe \x1b[2J proposed\n";
-  const rendered = renderToolkitDiff("current file", "proposed file", current, proposed, { color: true });
+  const rendered = renderToolkitDiff("current file", "proposed file", current, proposed, {
+    color: true,
+  });
 
   assert.match(rendered, /\x1b\[36m@@ .* @@\x1b\[0m/);
   assert.match(rendered, /\x1b\[31m-safe current\x1b\[0m/);
@@ -16,7 +18,13 @@ test("diff output sanitizes terminal controls before applying diff colors", () =
 });
 
 test("diff output labels both versions and reports when the diff is truncated", () => {
-  const rendered = renderToolkitDiff("current APPEND_SYSTEM.md", "proposed APPEND_SYSTEM.md", "old\n", `${"new\n".repeat(100)}`, { maxLength: 200 });
+  const rendered = renderToolkitDiff(
+    "current APPEND_SYSTEM.md",
+    "proposed APPEND_SYSTEM.md",
+    "old\n",
+    `${"new\n".repeat(100)}`,
+    { maxLength: 200 },
+  );
 
   assert.match(rendered, /--- current APPEND_SYSTEM\.md/);
   assert.match(rendered, /\+\+\+ proposed APPEND_SYSTEM\.md/);

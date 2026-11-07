@@ -1,0 +1,19 @@
+{
+  "name": "@gdezan/pi-mermaid-images",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "proof": "node proof.mjs",
+    "proof:tui": "node proof.mjs && python3 proof-tui.py"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "@xmldom/xmldom": "0.9.12",
+    "css-tree": "3.2.1",
+    "pele": "1.13.0"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

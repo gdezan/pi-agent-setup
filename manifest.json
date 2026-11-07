@@ -1,24 +1,112 @@
 {
   "version": 1,
   "resources": [
-    { "id": "footer", "kind": "extensions", "path": "dotfiles/extensions/pi-footer/index.ts", "legacy": ["extensions/pi-footer/index.ts"] },
-    { "id": "favorites-cycle", "kind": "extensions", "path": "dotfiles/extensions/favorites-cycle.ts", "legacy": [] },
-    { "id": "provider-usage", "kind": "extensions", "path": "dotfiles/extensions/provider-usage.ts", "legacy": ["extensions/provider-usage.ts"] },
-    { "id": "next-prompt", "kind": "extensions", "path": "dotfiles/extensions/next-prompt/index.ts", "legacy": [] },
-    { "id": "session-autoname", "kind": "extensions", "path": "dotfiles/extensions/session-autoname.ts", "legacy": ["extensions/session-autoname.ts"] },
-    { "id": "cache-observer", "kind": "extensions", "path": "dotfiles/extensions/pi-cache-observer/index.ts", "legacy": ["extensions/pi-cache-observer/index.ts"] },
-    { "id": "ask-user-question", "kind": "extensions", "path": "dotfiles/local-packages/ask-user-question/index.ts", "legacy": ["local-packages/ask-user-question/index.ts"], "packageName": "@local/ask-user-question" },
-    { "id": "impeccable", "kind": "skills", "path": "dotfiles/skills/impeccable/SKILL.md", "legacy": ["skills/impeccable/SKILL.md"] }
+    {
+      "id": "footer",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-footer/index.ts",
+      "legacy": ["extensions/pi-footer/index.ts"],
+      "previousPaths": ["dotfiles/extensions/pi-footer/index.ts"]
+    },
+    {
+      "id": "favorites-cycle",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-favorites-cycle/index.ts",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/favorites-cycle.ts"]
+    },
+    {
+      "id": "provider-usage",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-provider-usage/index.ts",
+      "legacy": ["extensions/provider-usage.ts"],
+      "previousPaths": ["dotfiles/extensions/provider-usage.ts"]
+    },
+    {
+      "id": "next-prompt",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-next-prompt/index.ts",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/next-prompt/index.ts"]
+    },
+    {
+      "id": "session-autoname",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-session-autoname/index.ts",
+      "legacy": ["extensions/session-autoname.ts"],
+      "previousPaths": ["dotfiles/extensions/session-autoname.ts"]
+    },
+    {
+      "id": "cache-observer",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-cache-observer/index.ts",
+      "legacy": ["extensions/pi-cache-observer/index.ts"],
+      "previousPaths": ["dotfiles/extensions/pi-cache-observer/index.ts"]
+    },
+    {
+      "id": "mermaid-images",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-mermaid-images/index.js",
+      "legacy": [],
+      "previousPaths": ["dotfiles/extensions/mermaid-images/index.js"]
+    },
+    {
+      "id": "ask-user-question",
+      "kind": "extensions",
+      "path": "dotfiles/extensions/gd-ask-user-question/index.ts",
+      "previousPaths": [
+        "dotfiles/extensions/ask-user-question/index.ts",
+        "dotfiles/local-packages/ask-user-question/index.ts"
+      ],
+      "legacy": ["local-packages/ask-user-question/index.ts"],
+      "packageName": "@local/ask-user-question"
+    }
   ],
   "packages": [
-    { "id": "model-pick", "source": "npm:pi-model-pick", "description": "Searchable model picker with favorites and recents; use with favorites-cycle for Ctrl+P" },
-    { "id": "workflow", "source": "git:git@github.com:gdezan/pi-workflow", "description": "Personal workflow tools; requires GitHub SSH access" },
-    { "id": "plannotator", "source": "npm:@plannotator/pi-extension", "description": "Interactive plan and code review" },
-    { "id": "cursor", "source": "npm:pi-cursor-sdk", "description": "Cursor SDK provider integration; requires local authentication" },
-    { "id": "blackhole", "source": "npm:pi-blackhole", "description": "Session context and recall tools" },
-    { "id": "fff", "source": "npm:@ff-labs/pi-fff", "description": "Fast local code search" },
-    { "id": "web-search", "source": "npm:pi-web-search", "description": "Provider-native web search" },
-    { "id": "browser", "source": "npm:pi-agent-browser-native", "description": "Browser automation; requires browser setup on this machine" },
-    { "id": "observational-memory", "source": "npm:pi-observational-memory", "description": "Tiered compaction with observations and reflections; memory workers run on the session model" }
+    {
+      "id": "model-pick",
+      "source": "npm:pi-model-pick",
+      "description": "Searchable model picker with favorites and recents; use with favorites-cycle for Ctrl+P"
+    },
+    {
+      "id": "workflow",
+      "source": "git:git@github.com:gdezan/pi-workflow",
+      "description": "Personal workflow tools; requires GitHub SSH access"
+    },
+    {
+      "id": "plannotator",
+      "source": "npm:@plannotator/pi-extension",
+      "description": "Interactive plan and code review"
+    },
+    {
+      "id": "cursor",
+      "source": "npm:pi-cursor-sdk",
+      "description": "Cursor SDK provider integration; requires local authentication"
+    },
+    {
+      "id": "blackhole",
+      "source": "npm:pi-blackhole",
+      "description": "Session context and recall tools"
+    },
+    {
+      "id": "fff",
+      "source": "npm:@ff-labs/pi-fff",
+      "description": "Fast local code search"
+    },
+    {
+      "id": "web-search",
+      "source": "npm:pi-web-search",
+      "description": "Provider-native web search"
+    },
+    {
+      "id": "browser",
+      "source": "npm:pi-agent-browser-native",
+      "description": "Browser automation; requires browser setup on this machine"
+    },
+    {
+      "id": "observational-memory",
+      "source": "npm:pi-observational-memory",
+      "description": "Tiered compaction with observations and reflections; memory workers run on the session model"
+    }
   ]
 }
