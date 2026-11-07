@@ -4,9 +4,7 @@ My [Pi](https://pi.dev) extensions and preferences, ready to install on another 
 packages during setup; model choices, credentials, and session history stay local.
 
 Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session
-naming and next-prompt suggestions using a shared utility model, questionnaire and todo tools, and
-[inline Mermaid images](dotfiles/extensions/gd-mermaid-images/README.md) in Kitty-compatible
-terminals.
+naming and next-prompt suggestions using a shared utility model, and questionnaire and todo tools.
 
 ## Install
 
@@ -30,10 +28,6 @@ On Windows, run `node setup.mjs` from PowerShell; `bootstrap.sh` requires Bash. 
 use Windows `npm.cmd` and `pi.cmd` shims and reject package arguments containing shell
 metacharacters.
 
-Mermaid images require Pi 1.5.0+ and `markdown.mermaid` set to `"off"` in your machine's settings to
-avoid Pi's earlier built-in transformation. The extension warns rather than changing that setting.
-Terminals without Kitty graphics then show Mermaid source fences.
-
 Run setup as often as needed. It keeps installed third-party packages, remembers your choices, and
 makes no changes on an unchanged rerun. Recognized legacy resources matching the bundle move into a
 backup so the bundled versions become active. If a legacy copy differs, setup asks before migrating
@@ -55,11 +49,6 @@ Run `npm install` to install development dependencies, then use `npm run lint` t
 and TypeScript, `npm run format` to format supported files, and `npm run format:check` to check
 formatting without writing changes. Oxfmt targets a 100-column print width; it may leave unbreakable
 content longer.
-
-For Mermaid checks, install its runtime dependencies with
-`npm ci --prefix dotfiles/extensions/gd-mermaid-images --ignore-scripts --legacy-peer-deps`, then
-run `npm run test:mermaid`. This includes disposable regular/fullscreen Pi PTY checks with no model
-calls.
 
 ## Customize
 

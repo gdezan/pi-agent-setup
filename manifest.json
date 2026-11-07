@@ -44,13 +44,6 @@
       "previousPaths": ["dotfiles/extensions/pi-cache-observer/index.ts"]
     },
     {
-      "id": "mermaid-images",
-      "kind": "extensions",
-      "path": "dotfiles/extensions/gd-mermaid-images/index.js",
-      "legacy": [],
-      "previousPaths": ["dotfiles/extensions/mermaid-images/index.js"]
-    },
-    {
       "id": "ask-user-question",
       "kind": "extensions",
       "path": "dotfiles/extensions/gd-ask-user-question/index.ts",

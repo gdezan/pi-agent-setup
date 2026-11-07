@@ -20,7 +20,6 @@
     "format:check": "oxfmt --check .",
     "test": "node --test scripts/*.test.mjs",
     "test:resources": "node --experimental-strip-types --test dotfiles/extensions/gd-cache-observer/*.test.ts dotfiles/extensions/gd-footer/sections/*.test.ts dotfiles/extensions/tests/*.test.ts dotfiles/extensions/gd-ask-user-question/tests/*.test.ts && npm run test:footer-render",
-    "test:mermaid": "npm test --prefix dotfiles/extensions/gd-mermaid-images && npm run proof:tui --prefix dotfiles/extensions/gd-mermaid-images",
     "test:footer-render": "node --experimental-strip-types dotfiles/extensions/gd-footer/footer.render-check.ts",
     "test:wizard": "python3 -B scripts/toolkit-wizard.test.py",
     "test:utility-tui": "python3 -B scripts/utility-model-tui.test.py"
@@ -52,8 +51,7 @@
       "./dotfiles/extensions/gd-session-autoname/index.ts",
       "./dotfiles/extensions/gd-cache-observer/index.ts",
       "./dotfiles/extensions/gd-ask-user-question/index.ts",
-      "./dotfiles/extensions/gd-next-prompt/index.ts",
-      "./dotfiles/extensions/gd-mermaid-images/index.js"
+      "./dotfiles/extensions/gd-next-prompt/index.ts"
     ]
   }
 }

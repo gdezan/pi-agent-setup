@@ -109,11 +109,11 @@ for (const legacy of [false, true]) {
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.some((extension) =>
         extension.resolvedPath.split(sep).join('/').includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
-      assert.equal(loader.getExtensions().extensions.length, 8);
+      assert.equal(loader.getExtensions().extensions.length, 7);
       for (const suffix of ['gd-footer/index.ts', 'gd-favorites-cycle/index.ts',
         'gd-provider-usage/index.ts', 'gd-session-autoname/index.ts',
         'gd-cache-observer/index.ts', 'gd-ask-user-question/index.ts',
-        'gd-next-prompt/index.ts', 'gd-mermaid-images/index.js']) {
+        'gd-next-prompt/index.ts']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
           extension.resolvedPath.split(sep).join('/').endsWith('/' + suffix)).length, 1, suffix);
       }
