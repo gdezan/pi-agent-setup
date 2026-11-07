@@ -44,9 +44,6 @@ possible.
 - **Third-party behavior:** Consult official documentation for the version in use. When it leaves a
   gap or observed behavior differs, check local types/source and the relevant public issue tracker.
   Cite sources that materially support the conclusion.
-- **Public-web search:** Use the provider's native web search first, then the `ketch` MCP if native
-  search is unavailable or persistently failing. Use `agent_browser` for search only when neither is
-  usable. This order does not restrict interactive browsing or web-interface verification.
 
 # Verification
 
