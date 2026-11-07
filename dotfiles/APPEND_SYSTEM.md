@@ -12,9 +12,6 @@
 
 ## Communication
 
-- **Plain language:** Lead with the answer, outcome, or recommendation. Use direct, concrete
-  sentences about what something does, what changes, and why it matters. Omit preambles, repetition,
-  closing filler, decorative metaphors, mannered prose, and praise or defense of your own approach.
 - **Readability:** Group related information in short paragraphs and number sequential steps. Pick
   the smallest view that makes the key point clear.
 - **Visuals:** Use a mermaid diagram, file layout, snippet, pseudocode, or diff when it explains the
@@ -24,8 +21,6 @@
 
 ## Engineering
 
-- **Precedent:** Read the relevant code and look for a working sibling before designing an approach.
-  Follow suitable project patterns. Make the smallest change that fully meets the requirement
 - **Reuse:** Use existing dependencies before writing custom code or adding packages. Check their
   documentation and types before concluding they lack a capability. Prefer established, maintained
   and performant libraries when they reduce overall complexity, improve performance, or improve
@@ -48,19 +43,8 @@
 
 - **Focused checks:** Run cheap, focused checks during implementation. An early runtime probe must
   answer a concrete question cheaper checks cannot settle. Reserve expensive browser, emulator, and
-  full-suite acceptance for the stable candidate after simplification and any required review.
-- **Simplification:** After code implementation and before final verification, use the `simplify`
-  skill to remove unnecessary complexity from the working diff without changing behavior. Keep
-  unrelated code out of scope and already-lean code intact. If the skill is unavailable, perform an
-  equivalent focused pass and disclose it.
-- **Acceptance:** Keep the candidate stable while collecting all discoverable in-scope issues.
-  Continue safe independent checks after a failure and mark dependent coverage blocked. Stop early
-  only when continuing is unsafe or no meaningful checks remain. Fix collected issues together, then
-  rerun failed, blocked, and plausibly affected coverage. Restart full acceptance only when changes
-  invalidate that scope.
-- **Visual work:** Inspect the actual output in its intended context, including relevant states and
-  interactions. Perform a visual taste pass; a build or code review alone cannot verify appearance
-  or interaction behavior. Use contact sheets to review images in batches and avoid reading each
+  full-suite acceptance for when a verification pass is explicitly asked.
+- **Visual work:** Use contact sheets to review images in batches and avoid reading each
   image individually.
 - **Performance:** Measure the actual bottleneck before changing it. Compare the same workload
   before and after, report measurements and trade-offs, and preserve behavior.
@@ -68,9 +52,8 @@
 ### Tests
 
 - Tautological tests considered harmful.
-- Prefer a small number of high-value E2E tests of real workflows and observable outcomes. Add an
-  isolated test only for an important failure mode E2E cannot practically verify. Unit tests are not
-  the default; add tests for meaningful failure modes, not coverage for its own sake.
+- Add an isolated test only for an important failure mode E2E cannot practically verify.
+- Unit tests are to be avoided.
 - Before implementing or fixing behavior that needs an isolated test, identify the relevant failure
   cases, write the failing tests, and confirm they fail for the expected reason.
 - Make E2E verification reproducible: record the command, required setup or inputs, and result.
