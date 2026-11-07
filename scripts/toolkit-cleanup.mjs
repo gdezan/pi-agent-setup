@@ -1,10 +1,11 @@
 import { existsSync, readdirSync, lstatSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { readToolkitJson, toolkitPackageIdentity, toolkitPackageSource } from "./toolkit-settings.mjs";
 import { toolkitPathStat } from "./toolkit-files.mjs";
 
 export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
 const HERDR_AGENT_STATE_PATH = "extensions/herdr-agent-state.ts";
+const resourcePath = (agentDir, path) => relative(agentDir, path).split(sep).join("/");
 
 /**
  * Read the machine-local keep list.
@@ -37,7 +38,7 @@ export function isKeptToolkitPath(relativePath, keep) {
 /** Guard a permanent delete against a configured local path escaping Pi's conventional resource roots. */
 export function assertToolkitCleanupPath(agentDir, path) {
   const parent = dirname(path);
-  if (relative(agentDir, path) === HERDR_AGENT_STATE_PATH ||
+  if (resourcePath(agentDir, path) === HERDR_AGENT_STATE_PATH ||
       !["extensions", "skills", "local-packages"].some((kind) => parent === join(agentDir, kind)) ||
       toolkitPathStat(parent)?.isSymbolicLink()) {
     throw new Error(`Unsafe toolkit cleanup path: ${path}`);
@@ -70,10 +71,10 @@ export function listToolkitCleanupCandidates({ agentDir, settings, manifest, sel
     const path = local ? identity.slice("local:".length) : undefined;
     if (path) packagePaths.add(path);
     if (local && (!resourceParents.has(dirname(path)) || toolkitPathStat(dirname(path))?.isSymbolicLink() ||
-      legacy.has(relative(agentDir, path)))) continue;
+      legacy.has(resourcePath(agentDir, path)))) continue;
     // A keep entry is an agent-directory path, so it can only address a local package.
-    if (path && isKeptToolkitPath(relative(agentDir, path), keep)) { honoured.add(relative(agentDir, path)); continue; }
-    if (path && relative(agentDir, path) === HERDR_AGENT_STATE_PATH) continue;
+    if (path && isKeptToolkitPath(resourcePath(agentDir, path), keep)) { honoured.add(resourcePath(agentDir, path)); continue; }
+    if (path && resourcePath(agentDir, path) === HERDR_AGENT_STATE_PATH) continue;
     candidates.push({ id: `package:${source}`, kind: "package", label: source, source, path });
   }
   for (const kind of ["extensions", "skills", "local-packages"]) {
@@ -81,7 +82,7 @@ export function listToolkitCleanupCandidates({ agentDir, settings, manifest, sel
     if (!existsSync(directory) || lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) continue;
     for (const name of readdirSync(directory).sort()) {
       const path = join(directory, name);
-      const relativePath = relative(agentDir, path);
+      const relativePath = resourcePath(agentDir, path);
       if (legacy.has(relativePath) || packagePaths.has(path)) continue;
       if (isKeptToolkitPath(relativePath, keep)) { honoured.add(relativePath); continue; }
       if (relativePath === HERDR_AGENT_STATE_PATH) continue;

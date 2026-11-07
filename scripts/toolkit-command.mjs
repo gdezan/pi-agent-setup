@@ -5,12 +5,26 @@ export class ToolkitCancelled extends Error {
   constructor() { super("Toolkit setup cancelled"); }
 }
 
-/** Run without a shell; wait for exit and terminate the Unix process group before releasing caller locks. */
+/** Run commands and terminate the Unix process group before releasing caller locks. */
 export function runToolkitCommand({ command, args, cwd, env = process.env, signal, onOutput = () => {} }) {
   if (signal?.aborted) return Promise.reject(new ToolkitCancelled());
+  // npm and Pi are normally .cmd shims on Windows, which cannot be spawned directly.
+  // Limit cmd.exe to these known commands and safe arguments: batch files reparse
+  // their arguments, so general-purpose shell escaping is not sufficient here.
+  let executable = command;
+  let commandArgs = args;
+  let windowsVerbatimArguments = false;
+  if (process.platform === "win32" && (command === "npm" || command === "pi")) {
+    if (args.some((arg) => !/^[a-zA-Z0-9_./:@=+,~-]+$/.test(arg))) {
+      return Promise.reject(new Error(`Unsafe argument for Windows ${command} command`));
+    }
+    executable = env.ComSpec || env.COMSPEC || "cmd.exe";
+    commandArgs = ["/d", "/s", "/c", `"${command}.cmd ${args.map((arg) => `"${arg}"`).join(" ")}"`];
+    windowsVerbatimArguments = true;
+  }
   return new Promise((accept, reject) => {
     const grouped = process.platform !== "win32";
-    const child = spawn(command, args, { cwd, env, detached: grouped, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(executable, commandArgs, { cwd, env, detached: grouped, windowsVerbatimArguments, stdio: ["ignore", "pipe", "pipe"] });
     let tail = "";
     let failure;
     let timer;

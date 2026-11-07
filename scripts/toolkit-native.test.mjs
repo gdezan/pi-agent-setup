@@ -29,18 +29,19 @@ for (const legacy of [false, true]) {
     const sdk = pathToFileURL(join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js")).href;
     const result = spawnSync(process.execPath, ["--input-type=module", "-e", `
       import assert from 'node:assert/strict';
+      import {sep} from 'node:path';
       import {DefaultResourceLoader} from ${JSON.stringify(sdk)};
       const loader = new DefaultResourceLoader({cwd:${JSON.stringify(join(base, "project"))}, agentDir:process.env.PI_CODING_AGENT_DIR, noContextFiles:true});
       await loader.reload();
       assert.deepEqual(loader.getExtensions().errors, []);
       assert.deepEqual(loader.getSkills().diagnostics, []);
       assert.equal(loader.getExtensions().extensions.some((extension) =>
-        extension.resolvedPath.includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
+        extension.resolvedPath.split(sep).join('/').includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
       for (const suffix of ['pi-footer/index.ts', 'favorites-cycle.ts', 'provider-usage.ts',
         'session-autoname.ts', 'pi-cache-observer/index.ts',
         'ask-user-question/index.ts', 'next-prompt/index.ts']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
-          extension.resolvedPath.endsWith('/' + suffix)).length, 1, suffix);
+          extension.resolvedPath.split(sep).join('/').endsWith('/' + suffix)).length, 1, suffix);
       }
       assert.equal(loader.getSkills().skills.filter((skill) => skill.name === 'impeccable').length, 1);
       assert.equal(loader.getSkills().skills.some((skill) => skill.name === 'analyze-sessions'), false);

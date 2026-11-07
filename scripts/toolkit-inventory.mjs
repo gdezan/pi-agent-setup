@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { satisfies, validRange } from "semver";
 import { findToolkitPackage, readToolkitJson, toolkitPackageIdentity, toolkitPackageSource } from "./toolkit-settings.mjs";
@@ -34,7 +34,7 @@ export function validateToolkitResources(manifest, files) {
     const safePath = (path) => typeof path === "string" && path.length > 0 && !isAbsolute(path) &&
       !path.split(/[\\/]/).includes("..") && !/[\x00-\x1f]/.test(path);
     if (!/^[a-z][a-z0-9-]*$/.test(resource.id ?? "") || ids.has(resource.id) ||
-        !["extensions", "skills"].includes(resource.kind) || !safePath(resource.path) || !files.has(resource.path) ||
+        !["extensions", "skills"].includes(resource.kind) || !safePath(resource.path) || !files.has(normalize(resource.path)) ||
         !Array.isArray(resource.legacy) || !resource.legacy.every(safePath) ||
         (resource.packageName !== undefined && typeof resource.packageName !== "string")) {
       throw new Error("Invalid toolkit resource catalog: expected unique IDs and packaged resource paths");

@@ -28,7 +28,7 @@ test("cleanup never offers a configured package behind a symlinked resource pare
   const outside = mkdtempSync(join(tmpdir(), "pi-cleanup-outside-"));
   t.after(() => { rmSync(agentDir, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); });
   mkdirSync(join(outside, "custom"));
-  symlinkSync(outside, join(agentDir, "extensions"), "dir");
+  symlinkSync(outside, join(agentDir, "extensions"), process.platform === "win32" ? "junction" : "dir");
   const path = join(agentDir, "extensions/custom");
   const { candidates } = listToolkitCleanupCandidates({ agentDir, settings: { packages: ["extensions/custom"] },
     manifest: { packages: [], resources: [] }, selectedIds: [] });

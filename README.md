@@ -6,7 +6,7 @@ Includes a custom footer, favorites-based model cycling, usage and cache display
 
 ## Install
 
-Requires Git and Node.js **22.19+**. Tested with Pi **1.4.0** on Linux.
+Requires Git and Node.js **22.19+**. Tested with Pi **1.4.0** on Linux; Windows setup has also been checked with Pi **1.5.0** and PowerShell-compatible commands.
 
 ```sh
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent@1.4.0
@@ -16,6 +16,8 @@ node setup.mjs
 ```
 
 The first run installs the wizard's pinned dependencies. Setup shows a package checklist, an optional unchecked delete checklist when there are cleanup candidates, and a change preview before writing to `~/.pi/agent` (or `PI_CODING_AGENT_DIR` if set). Close Pi first. Start `pi` afterward and use `/login` to authenticate.
+
+On Windows, run `node setup.mjs` from PowerShell; `bootstrap.sh` requires Bash. Package operations use Windows `npm.cmd` and `pi.cmd` shims and reject package arguments containing shell metacharacters.
 
 Run setup as often as needed. It keeps installed third-party packages, remembers your choices, and makes no changes on an unchanged rerun. Recognized legacy resources matching the bundle move into a backup so the bundled versions become active. If a legacy copy differs, setup asks before migrating it. Unrelated resources stay in place.
 
