@@ -71,7 +71,11 @@ test("cleanup never offers a configured package behind a symlinked resource pare
     rmSync(outside, { recursive: true, force: true });
   });
   mkdirSync(join(outside, "custom"));
-  symlinkSync(outside, join(agentDir, "extensions"), process.platform === "win32" ? "junction" : "dir");
+  symlinkSync(
+    outside,
+    join(agentDir, "extensions"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   const path = join(agentDir, "extensions/custom");
   const { candidates } = listToolkitCleanupCandidates({
     agentDir,

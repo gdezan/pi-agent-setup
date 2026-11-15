@@ -29,17 +29,34 @@ test("package command arguments are literal and stdout/stderr stay behind the ou
   assert.match(output, /stderr captured/);
 });
 
-test("Windows command shims receive safe arguments without shell injection", { skip: process.platform !== "win32" }, async (t) => {
-  const dir = workspace(t);
-  writeFileSync(join(dir, "pi.cmd"), "@echo off\r\necho args:%*\r\n");
-  const env = { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}` };
-  let output = "";
-  await runToolkitCommand({ command: "pi", args: ["install", "npm:@scope/package", "--no-approve"], cwd: dir, env,
-    onOutput: (text) => { output += text; } });
-  assert.match(output, /args:"install" "npm:@scope\/package" "--no-approve"/);
-  await assert.rejects(runToolkitCommand({ command: "pi", args: ["install", "npm:bad&whoami"], cwd: dir, env }), /Unsafe argument/);
-  await assert.rejects(runToolkitCommand({ command: "npm", args: ["%PATH%"], cwd: dir, env }), /Unsafe argument/);
-});
+test(
+  "Windows command shims receive safe arguments without shell injection",
+  { skip: process.platform !== "win32" },
+  async (t) => {
+    const dir = workspace(t);
+    writeFileSync(join(dir, "pi.cmd"), "@echo off\r\necho args:%*\r\n");
+    const env = { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}` };
+    let output = "";
+    await runToolkitCommand({
+      command: "pi",
+      args: ["install", "npm:@scope/package", "--no-approve"],
+      cwd: dir,
+      env,
+      onOutput: (text) => {
+        output += text;
+      },
+    });
+    assert.match(output, /args:"install" "npm:@scope\/package" "--no-approve"/);
+    await assert.rejects(
+      runToolkitCommand({ command: "pi", args: ["install", "npm:bad&whoami"], cwd: dir, env }),
+      /Unsafe argument/,
+    );
+    await assert.rejects(
+      runToolkitCommand({ command: "npm", args: ["%PATH%"], cwd: dir, env }),
+      /Unsafe argument/,
+    );
+  },
+);
 
 test("command failures keep bounded diagnostics", async (t) => {
   await assert.rejects(
