@@ -1,5 +1,6 @@
 /** Cursor account quota uses the desktop login, not pi-cursor-sdk's API key. */
 import { execFile } from "node:child_process";
+import { createDecipheriv, pbkdf2Sync } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -8,6 +9,53 @@ import { clampPercent, finite, snapshot } from "./types.ts";
 
 const runFile = promisify(execFile);
 const TIMEOUT_MS = 10_000;
+const KEYCHAIN_TIMEOUT_MS = 60_000;
+const SAFE_STORAGE_PREFIX = "cursor-safe-storage:v1:";
+const CURSOR_KEYCHAIN_ERROR =
+  "Cursor Keychain access unavailable; allow access and manually refresh to retry";
+let keychainBlocked = false;
+
+export function retryCursorKeychain(): void {
+  keychainBlocked = false;
+}
+
+async function decryptToken(value: string, skipKeychain: boolean): Promise<string> {
+  if (!value.startsWith(SAFE_STORAGE_PREFIX)) return value;
+  if (process.platform !== "darwin")
+    throw new Error("Encrypted Cursor desktop credentials are only supported on macOS");
+  const encoded = value.slice(SAFE_STORAGE_PREFIX.length);
+  const blob = Buffer.from(encoded, "base64");
+  if (
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) ||
+    blob.toString("base64") !== encoded ||
+    blob.subarray(0, 3).toString() !== "v10" ||
+    blob.length <= 3 ||
+    (blob.length - 3) % 16 !== 0
+  ) {
+    throw new Error("Cursor desktop credentials use an unsupported encrypted format");
+  }
+  if (skipKeychain || keychainBlocked) throw new Error(CURSOR_KEYCHAIN_ERROR);
+  let password: string;
+  try {
+    const result = await runFile(
+      "security",
+      ["find-generic-password", "-s", "Cursor Safe Storage", "-w"],
+      { timeout: KEYCHAIN_TIMEOUT_MS, maxBuffer: 64 * 1024 },
+    );
+    password = result.stdout.replace(/\r?\n$/, "");
+    if (!password) throw new Error("missing key");
+  } catch {
+    keychainBlocked = true;
+    throw new Error(CURSOR_KEYCHAIN_ERROR);
+  }
+  try {
+    const key = pbkdf2Sync(password, "saltysalt", 1003, 16, "sha1");
+    const cipher = createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, 32));
+    return Buffer.concat([cipher.update(blob.subarray(3)), cipher.final()]).toString("utf8");
+  } catch {
+    throw new Error("Could not decrypt Cursor desktop credentials with the Keychain key");
+  }
+}
 
 function credentialPath(): string {
   const base =
@@ -57,7 +105,7 @@ export function parseCursorUsage(value: unknown): Snapshot {
   return result;
 }
 
-async function sessionCookie(path: string): Promise<string> {
+async function sessionCookie(path: string, skipKeychain: boolean): Promise<string> {
   // Isolate synchronous SQLite work and its experimental warnings from Pi's TUI.
   // Only stdout carries the token, captured in memory; child errors are never surfaced raw.
   let token: string;
@@ -87,6 +135,7 @@ async function sessionCookie(path: string): Promise<string> {
       "Cursor desktop credentials are not configured or unreadable; open Cursor and sign in",
     );
   }
+  token = await decryptToken(token, skipKeychain);
   let claims: Record<string, unknown> | undefined;
   try {
     const payload = Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8");
@@ -106,8 +155,11 @@ async function sessionCookie(path: string): Promise<string> {
 }
 
 /** Read-only observer. Never refreshes or changes Cursor's credentials. */
-export async function fetchCursorUsage(path = credentialPath()): Promise<Snapshot> {
-  const cookie = await sessionCookie(path);
+export async function fetchCursorUsage(
+  path = credentialPath(),
+  skipKeychain = false,
+): Promise<Snapshot> {
+  const cookie = await sessionCookie(path, skipKeychain);
   const response = await fetch("https://cursor.com/api/usage-summary", {
     method: "GET",
     redirect: "error",

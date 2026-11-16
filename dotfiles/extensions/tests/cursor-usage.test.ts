@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { createCipheriv, createHash, pbkdf2Sync } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { fetchCursorUsage, parseCursorUsage } from "../gd-provider-usage/cursor.ts";
+import {
+  fetchCursorUsage,
+  parseCursorUsage,
+  retryCursorKeychain,
+} from "../gd-provider-usage/cursor.ts";
 import { UsagePopup } from "../gd-provider-usage/popup.ts";
 
 const usage = {
@@ -161,6 +165,67 @@ test("Cursor desktop quota flows through refresh, footer and popup without crede
     await rm(home, { recursive: true, force: true });
   }
 });
+
+test(
+  "Cursor encrypted macOS credentials use Keychain without changing the database",
+  { skip: process.platform !== "darwin" },
+  async () => {
+    const dir = await mkdtemp(join(tmpdir(), "cursor-encrypted-"));
+    const oldPath = process.env.PATH;
+    const previousFetch = globalThis.fetch;
+    try {
+      const password = "fixture-password";
+      const token = `header.${Buffer.from(JSON.stringify({ sub: "auth0|fixture", exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.signature`;
+      const key = pbkdf2Sync(password, "saltysalt", 1003, 16, "sha1");
+      const cipher = createCipheriv("aes-128-cbc", key, Buffer.alloc(16, 32));
+      const encrypted = Buffer.concat([Buffer.from("v10"), cipher.update(token), cipher.final()]);
+      const path = join(dir, "state.vscdb");
+      const db = new DatabaseSync(path);
+      db.exec("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)");
+      db.prepare("INSERT INTO ItemTable VALUES (?, ?)").run(
+        "cursorAuth/accessToken",
+        `cursor-safe-storage:v1:${encrypted.toString("base64")}`,
+      );
+      db.close();
+      const before = await readFile(path);
+      await writeFile(join(dir, "security"), `#!/bin/sh\nprintf '%s\\n' '${password}'\n`, {
+        mode: 0o700,
+      });
+      process.env.PATH = `${dir}:${oldPath}`;
+      globalThis.fetch = async (_url, options) => {
+        assert.equal(
+          new Headers(options?.headers).get("cookie"),
+          `WorkosCursorSessionToken=fixture%3A%3A${token}`,
+        );
+        return Response.json(usage);
+      };
+      assert.equal((await fetchCursorUsage(path)).windows.length, 2);
+      await writeFile(
+        join(dir, "security"),
+        `#!/bin/sh\nsleep 11\nprintf '%s\\n' '${password}'\n`,
+        { mode: 0o700 },
+      );
+      assert.equal((await fetchCursorUsage(path)).windows.length, 2);
+      await writeFile(
+        join(dir, "security"),
+        `#!/bin/sh\necho attempt >> '${dir}/attempts'\nexit 1\n`,
+        { mode: 0o700 },
+      );
+      await assert.rejects(fetchCursorUsage(path), /Keychain access unavailable/);
+      await assert.rejects(fetchCursorUsage(path), /Keychain access unavailable/);
+      assert.equal(await readFile(join(dir, "attempts"), "utf8"), "attempt\n");
+      retryCursorKeychain();
+      await assert.rejects(fetchCursorUsage(path), /Keychain access unavailable/);
+      assert.equal(await readFile(join(dir, "attempts"), "utf8"), "attempt\nattempt\n");
+      assert.deepEqual(await readFile(path), before);
+    } finally {
+      process.env.PATH = oldPath;
+      retryCursorKeychain();
+      globalThis.fetch = previousFetch;
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 test("Cursor quota rejects missing data and keeps independent model percentages", () => {
   for (const value of [

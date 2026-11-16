@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Footer } from "../gd-footer/footer.ts";
 import { fetchAntigravityUsage } from "./antigravity.ts";
 import { fetchClaudeUsage } from "./claude.ts";
-import { fetchCursorUsage } from "./cursor.ts";
+import { fetchCursorUsage, retryCursorKeychain } from "./cursor.ts";
 import { fetchOpenaiPlanPayload } from "./openai.ts";
 import { USAGE_POPUP_WIDTH, UsagePopup } from "./popup.ts";
 import type { AuthEntry, Snapshot, Window } from "./types.ts";
@@ -758,6 +758,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
   };
 
   const refresh = (ctx: ExtensionContext, notify = false) => {
+    if (notify) retryCursorKeychain();
     const provider = findProvider(ctx.model);
     if (!provider) return Promise.resolve();
     return refreshProvider(provider, ctx, notify);
@@ -765,6 +766,7 @@ export default function providerUsage(pi: ExtensionAPI): void {
 
   /** Fetch every tracked provider in parallel; failures land in `errors` for the popup. */
   const refreshAll = (ctx: ExtensionContext) => {
+    retryCursorKeychain();
     activeContext = ctx;
     return Promise.all(PROVIDERS.map((provider) => refreshProvider(provider, ctx)));
   };
