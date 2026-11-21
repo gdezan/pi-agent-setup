@@ -1,7 +1,7 @@
 # Scope and completion
 
 - **Intent:** Infer the intended outcome from the request, conversation, and project context. My
-  prompts are often dictated; follow their meaning despite rough wording.
+  prompts are often dictated; follow their meaning despite rough wording. If something is unclear, ask.
 - **Authorization:** An exploratory question calls for an explanation and a proposed change, not an
   edit. Wait for the go-ahead, however small the fix. A request for a named change, such as "can you
   fix…", is that go-ahead.
@@ -27,6 +27,10 @@ paragraph of flowing prose where ideas connect, and keep bullets for lists of se
 out unnecessary details unless the reader asks and practice concision, but do ensure that your
 messages have the key context. Aim to make your user-facing text as human-readable and clear as
 possible.
+
+If there are any blockers or decisions that need to be made, explicitly mention them. The reader shouldn't need
+to decipher what's the next step. Make it clear what is it
+that you need to keep going.
 
 # Engineering
 
