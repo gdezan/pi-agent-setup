@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   buildNextPromptContext,
   normalizeNextPromptSuggestion,
@@ -11,8 +12,14 @@ const assistant = (text: string) => ({
   message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text }] },
 });
 
-test("suggestion context retains the recent request and final reply, not tools, reasoning, or abandoned context", () => {
-  const context = buildNextPromptContext([
+function contextFrom(entries: { type: string; message: unknown }[]) {
+  const session = SessionManager.inMemory();
+  for (const { message } of entries) session.appendMessage(message as never);
+  return buildNextPromptContext(session.buildSessionProjection().entries);
+}
+
+test("suggestion context keeps earlier requests before earlier replies and excludes irrelevant output", () => {
+  const context = contextFrom([
     user("Old topic"),
     assistant("Old answer"),
     user("First recent request"),
@@ -20,7 +27,13 @@ test("suggestion context retains the recent request and final reply, not tools, 
     user("Second recent request"),
     assistant("Second recent answer"),
     user("Latest request"),
-    { type: "message", message: { role: "toolResult", content: "SECRET TOOL OUTPUT" } },
+    {
+      type: "message",
+      message: {
+        role: "toolResult",
+        content: [{ type: "text", text: "UNRELATED TOOL OUTPUT" }],
+      },
+    },
     {
       type: "message",
       message: {
@@ -43,6 +56,7 @@ test("suggestion context retains the recent request and final reply, not tools, 
   ]);
   const serialized = JSON.stringify(context);
   for (const included of [
+    "Old topic",
     "First recent request",
     "Second recent request",
     "Latest request",
@@ -50,9 +64,8 @@ test("suggestion context retains the recent request and final reply, not tools, 
   ])
     assert.ok(serialized.includes(included));
   for (const excluded of [
-    "Old topic",
     "Old answer",
-    "SECRET TOOL OUTPUT",
+    "UNRELATED TOOL OUTPUT",
     "INTERMEDIATE TOOL PLAN",
     "PRIVATE REASONING",
   ])
@@ -60,11 +73,20 @@ test("suggestion context retains the recent request and final reply, not tools, 
 });
 
 test("oversized context stays bounded and preserves both sides of the latest exchange", () => {
-  const context = buildNextPromptContext([
+  const context = contextFrom([
     user("old".repeat(5_000)),
     assistant("old answer"),
     user(`LATEST USER ${"😀".repeat(9_000)} USER END`),
-    assistant(`LATEST ASSISTANT ${"b".repeat(15_000)} ASSISTANT END`),
+    {
+      type: "message",
+      message: {
+        role: "toolResult",
+        content: [{ type: "text", text: "FAIL tests/packaging.test.ts > signing is present" }],
+      },
+    },
+    assistant(
+      `LATEST ASSISTANT ${"b".repeat(7_000)}\n33. FAIL | PACKAGING FINDING\n${"b".repeat(8_000)} ASSISTANT END`,
+    ),
   ]);
   assert.ok(context);
   const text = context.messages
@@ -78,15 +100,21 @@ test("oversized context stays bounded and preserves both sides of the latest exc
     )
     .join("");
   assert.ok(Array.from(text).length <= 12_000);
-  for (const marker of ["LATEST USER", "USER END", "LATEST ASSISTANT", "ASSISTANT END"])
+  for (const marker of [
+    "LATEST USER",
+    "USER END",
+    "LATEST ASSISTANT",
+    "ASSISTANT END",
+    "PACKAGING FINDING",
+  ])
     assert.ok(text.includes(marker), marker);
-  assert.ok(!text.includes("old answer"));
+  assert.doesNotMatch(text, /old answer|tests\/packaging\.test\.ts/u);
 });
 
 test("suggestions require a successful completed exchange and reject unsafe terminal output", () => {
-  assert.equal(buildNextPromptContext([user("Unanswered")]), undefined);
+  assert.equal(contextFrom([user("Unanswered")]), undefined);
   assert.equal(
-    buildNextPromptContext([
+    contextFrom([
       user("Request"),
       {
         type: "message",
@@ -96,14 +124,16 @@ test("suggestions require a successful completed exchange and reject unsafe term
     undefined,
   );
   assert.equal(
-    buildNextPromptContext([user("Earlier"), assistant("Earlier answer"), user("New unanswered")]),
+    contextFrom([user("Earlier"), assistant("Earlier answer"), user("New unanswered")]),
     undefined,
   );
   assert.equal(normalizeNextPromptSuggestion('"Yes, implement it"'), "Yes, implement it");
+  const longSuggestion = "a".repeat(160);
+  assert.equal(normalizeNextPromptSuggestion(longSuggestion), longSuggestion);
   for (const text of [
     "",
     "Two\nlines",
-    "a".repeat(101),
+    "a".repeat(161),
     "\x1b[31mRun it",
     "hello\tworld",
     "hello\u2028world",

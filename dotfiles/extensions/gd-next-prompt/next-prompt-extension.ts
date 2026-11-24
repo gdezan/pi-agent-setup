@@ -96,7 +96,7 @@ export default function nextPrompt(pi: ExtensionAPI): void {
       if (utilitySettingsObject(settings.nextPrompt).enabled === false) return;
       const replyId = nextPromptReplyId(ctx);
       if (!replyId || attemptedReplies.has(replyId)) return;
-      const context = buildNextPromptContext(ctx.sessionManager.getBranch());
+      const context = buildNextPromptContext(ctx.sessionManager.buildSessionProjection().entries);
       if (!context) return;
       const config = parseUtilityModelConfig(settings);
       const model = resolveUtilityModel(ctx.modelRegistry, config);

@@ -34,6 +34,7 @@ function nextPromptHarness() {
     signal: AbortSignal;
     resolve: (value: unknown) => void;
     options: Record<string, unknown>;
+    context: unknown;
   }> = [];
   let renders = 0;
   let cycles = 0;
@@ -86,10 +87,10 @@ function nextPromptHarness() {
     modelRegistry: {
       find: () => ({ provider: "test", id: "utility", reasoning: true }),
       hasConfiguredAuth: () => true,
-      streamSimple: (_model: unknown, _context: unknown, options: Record<string, unknown>) => ({
+      streamSimple: (_model: unknown, context: unknown, options: Record<string, unknown>) => ({
         result: () =>
           new Promise((resolve) =>
-            requests.push({ signal: options.signal as AbortSignal, options, resolve }),
+            requests.push({ signal: options.signal as AbortSignal, options, context, resolve }),
           ),
       }),
     },
@@ -136,6 +137,8 @@ function nextPromptHarness() {
 
 test("settled reply shows a bounded ghost, preserves model-cycle shortcuts, and accepts without sending", async () => {
   const h = nextPromptHarness();
+  const suggestion =
+    "File a ticket for the Windows ARM64 installer failing on an apostrophe in the custom install path; leave the historical warnings out.";
   try {
     h.emit("agent_end");
     assert.equal(h.requests.length, 0);
@@ -144,7 +147,7 @@ test("settled reply shows a bounded ghost, preserves model-cycle shortcuts, and 
     assert.equal(h.requests[0].options.reasoning, "low");
     assert.equal(h.requests[0].options.maxTokens, 512);
     assert.equal(h.requests[0].options.maxRetries, 0);
-    h.requests[0].resolve(response("Yes, implement it"));
+    h.requests[0].resolve(response(suggestion));
     await flush();
     for (const width of [10, 24, 80]) {
       const lines = h.editor.render(width);
@@ -153,15 +156,16 @@ test("settled reply shows a bounded ghost, preserves model-cycle shortcuts, and 
     }
     const ghostRow = h.editor.render(80).find((line) => line.includes(CURSOR_MARKER))!;
     assert.ok(
-      stripTerminalSequences(ghostRow).startsWith("Yes, implement it"),
+      stripTerminalSequences(ghostRow).startsWith("File a ticket for the Windows"),
       "ghost and accepted text must share the same starting column",
     );
+    assert.match(stripTerminalSequences(ghostRow), /…/u);
     assert.equal(h.editor.getText(), "");
     h.editor.handleInput("\x10");
     assert.equal(h.cycles, 1);
-    assert.ok(stripTerminalSequences(h.editor.render(80).join("\n")).includes("Yes, implement it"));
+    assert.ok(stripTerminalSequences(h.editor.render(80).join("\n")).includes("File a ticket"));
     h.editor.handleInput("\t");
-    assert.equal(h.editor.getText(), "Yes, implement it");
+    assert.equal(h.editor.getText(), suggestion);
     assert.equal(h.submissions, 0);
     h.editor.handleInput("\r");
     assert.equal(h.submissions, 1);
@@ -227,6 +231,81 @@ test("typing then clearing the editor cancels a pending response and cannot resu
     );
     h.emit("agent_settled");
     assert.equal(h.requests.length, 1);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("suggestion requests use context edits rather than the original transcript", () => {
+  const h = nextPromptHarness();
+  try {
+    const [omittedRequest] = h.sessionManager.getBranch();
+    const replacedRequest = h.sessionManager.appendMessage({
+      role: "user",
+      content: "Review the original private draft",
+      timestamp: Date.now(),
+    });
+    h.sessionManager.appendMessage(response("Review complete") as never);
+    h.sessionManager.appendContextEdit(omittedRequest.id, null);
+    h.sessionManager.appendContextEdit(replacedRequest, { content: "Review the public draft" });
+    h.emit("agent_settled");
+    assert.equal(h.requests.length, 1);
+    const context = JSON.stringify(h.requests[0].context);
+    assert.match(context, /Review the public draft/);
+    assert.doesNotMatch(context, /original private draft|Can you fix this\?/);
+  } finally {
+    h.cleanup();
+  }
+});
+
+test("suggestions include relevant projected tool excerpts from the latest exchange only", () => {
+  const h = nextPromptHarness();
+  const addUser = (content: string) =>
+    h.sessionManager.appendMessage({ role: "user", content, timestamp: 0 });
+  const addResult = (toolName: string, text: string) =>
+    h.sessionManager.appendMessage({
+      role: "toolResult",
+      toolName,
+      toolCallId: text.slice(0, 20),
+      content: [{ type: "text", text }],
+      details: { internal: "PRIVATE_TOOL_METADATA" },
+      isError: false,
+      timestamp: 0,
+    });
+  try {
+    addUser("Check the checkout logs");
+    addResult("bash", "FAIL tests/old-checkout.test.ts > uses regional currency");
+    h.sessionManager.appendMessage(response("That earlier check is done.") as never);
+
+    addUser("Find which checkout setting forces USD instead of the customer's currency.");
+    const replaced = addResult("read", 'checkoutCurrencyOverride = "OLD_PRIVATE_VALUE"');
+    h.sessionManager.appendContextEdit(replaced, {
+      content: [
+        {
+          type: "text",
+          text: 'otherPackage = "UNRELATED_OUTPUT"\n\x1b[31mcheckoutCurrencyOverride = "USD"\x1b[0m\ncheckoutApiKey = "PRIVATE_CREDENTIAL"',
+        },
+      ],
+    });
+    const omitted = addResult("bash", "FAIL tests/omitted-checkout.test.ts > displays USD");
+    h.sessionManager.appendContextEdit(omitted, null);
+    addResult(
+      "bash",
+      `Startup trace unrelated to the request\nFAIL tests/country-checkout.test.ts > keeps checkout currency in CAD\n${"long currency dump ".repeat(90)}`,
+    );
+    h.sessionManager.appendMessage(
+      response("The checkout currency setting overrides the locale.") as never,
+    );
+    h.emit("agent_settled");
+
+    assert.equal(h.requests.length, 1);
+    const context = JSON.stringify(h.requests[0].context);
+    assert.match(context, /checkoutCurrencyOverride.*USD/u);
+    assert.match(context, /tests\/country-checkout\.test\.ts/u);
+    assert.doesNotMatch(
+      context,
+      /old-checkout|omitted-checkout|OLD_PRIVATE_VALUE|UNRELATED_OUTPUT|PRIVATE_CREDENTIAL|PRIVATE_TOOL_METADATA|Startup trace|long currency dump|001b/u,
+    );
   } finally {
     h.cleanup();
   }

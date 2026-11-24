@@ -185,11 +185,17 @@ Neither feature silently falls back to your conversation model when the utility 
 are unavailable. Automatic work skips; manual naming reports the problem. This changes AutoName's
 previous fallback behavior. Configure the selected provider through Pi's normal authentication flow.
 
-Next-prompt sends text from at most the last three user/assistant exchanges, capped at 12,000
-Unicode code points after serialization. It excludes system instructions, tool output, images, and
-hidden reasoning. Requests use a 512-token output budget including reasoning, a 10-second timeout,
-and no retries. No obvious next step can mean no suggestion. AutoName retains its separate user-text
-excerpt and naming limits.
+Next-prompt sends recent user requests and assistant replies, capped at 12,000 Unicode code points
+after serialization. It can include up to three short excerpts from tool results in the latest
+exchange, such as a failing test or a relevant line from a file read. It uses the conversation as
+seen after context edits and does not include images, tool metadata, or hidden reasoning. It selects
+lines instead of replaying logs or files. A selected line can still contain sensitive data and may
+go to a different provider than the conversation. Use `/next-prompt off` to stop suggestion
+requests.
+
+Requests use a 512-token output budget including reasoning, a 10-second timeout, and no retries. No
+obvious next step can mean no suggestion. AutoName retains its separate user-text excerpt and naming
+limits.
 
 AutoName starts a single background naming request as soon as the first user message reaches the
 agent, without waiting for an assistant reply or delaying the conversation. The title appears when
