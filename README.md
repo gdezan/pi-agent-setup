@@ -4,7 +4,7 @@ My [Pi](https://pi.dev) extensions and preferences, ready to install on another 
 packages during setup; model choices, credentials, and session history stay local.
 
 Includes a custom footer, favorites-based model cycling, usage and cache displays, automatic session
-naming and next-prompt suggestions using a shared utility model, and questionnaire and todo tools.
+naming and next-prompt suggestions using a shared utility model, and a questionnaire tool.
 
 ## Install
 
@@ -201,7 +201,14 @@ this background usage to Pi's conversation totals or represent subscription bill
 quality and actual provider latency depend on your selected model; the automated TUI check uses a
 local fixture, not a paid model.
 
-### OpenAI shared-plan usage
+### Provider usage
+
+Enable the **provider-usage** extension to view account usage with `/usage`. It supports Cursor,
+Codex, OpenAI, Claude Code, OpenCode Go, xAI, GitHub Copilot, Antigravity, and DeepSeek. The footer
+shows usage for the selected model's provider when available. Claude Code and Antigravity appear
+only in the `/usage` popup because the extension reads their separate CLI logins.
+
+#### OpenAI shared-plan usage
 
 With an `openai/*` model selected and `/login openai` configured for ChatGPT, the footer and
 `/usage` show only shared-plan quota windows and reset countdowns. App-specific usage is not
@@ -217,7 +224,7 @@ endpoints or rewrites credentials. If the companion login expires or is rejected
 These quota endpoints are undocumented. Failed verification clears the OpenAI meter rather than
 showing stale or unrelated quota. Legacy `openai-codex` usage remains separate.
 
-### Cursor usage
+#### Cursor usage
 
 `/usage` shows separate **Cursor** and **Other** quota bars. With a `cursor/*` model selected, the
 footer shows the percentage remaining in each allowance and its reset countdown.
@@ -225,6 +232,10 @@ footer shows the percentage remaining in each allowance and its reset countdown.
 Usage reads Cursor's desktop login read-only, not the `pi-cursor-sdk` API key. Sign in to the same
 account in Cursor desktop and Pi. If the desktop login expires, open Cursor and sign in again; this
 extension does not refresh or write credentials.
+
+On macOS, encrypted Cursor desktop credentials require access to the **Cursor Safe Storage** entry
+in Keychain. If access fails, allow it and reopen `/usage` to retry. With a Cursor model selected,
+`/usage refresh` also retries access.
 
 ## Update
 
