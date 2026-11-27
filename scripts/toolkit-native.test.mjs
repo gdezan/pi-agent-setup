@@ -13,7 +13,7 @@ test("native Pi loads the questionnaire as a standalone local package", (t) => {
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const agentDir = join(base, "agent");
   mkdirSync(agentDir);
-  const packagePath = join(root, "dotfiles/extensions/gd-ask-user-question");
+  const packagePath = join(root, "extensions/pi-ask-user-question");
   writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [packagePath] }));
   const sdk = pathToFileURL(
     join(root, "node_modules/@earendil-works/pi-coding-agent/dist/index.js"),
@@ -51,11 +51,11 @@ for (const legacy of [false, true]) {
     mkdirSync(join(base, ".git"));
     if (legacy) {
       mkdirSync(join(agentDir, "extensions"));
-      cpSync(join(root, "dotfiles/extensions/gd-footer"), join(agentDir, "extensions/pi-footer"), {
+      cpSync(join(root, "extensions/pi-footer"), join(agentDir, "extensions/pi-footer"), {
         recursive: true,
       });
       cpSync(
-        join(root, "dotfiles/extensions/gd-ask-user-question"),
+        join(root, "extensions/pi-ask-user-question"),
         join(agentDir, "local-packages/ask-user-question"),
         { recursive: true },
       );
@@ -110,10 +110,10 @@ for (const legacy of [false, true]) {
       assert.equal(loader.getExtensions().extensions.some((extension) =>
         extension.resolvedPath.split(sep).join('/').includes('/utility-model/')), false, 'utility model helpers are not a separate extension');
       assert.equal(loader.getExtensions().extensions.length, 7);
-      for (const suffix of ['gd-footer/index.ts', 'gd-favorites-cycle/index.ts',
-        'gd-provider-usage/index.ts', 'gd-session-autoname/index.ts',
-        'gd-cache-observer/index.ts', 'gd-ask-user-question/index.ts',
-        'gd-next-prompt/index.ts']) {
+      for (const suffix of ['pi-footer/index.ts', 'pi-favorites-cycle/index.ts',
+        'pi-provider-usage/index.ts', 'pi-session-autoname/index.ts',
+        'pi-cache-observer/index.ts', 'pi-ask-user-question/index.ts',
+        'pi-next-prompt/index.ts']) {
         assert.equal(loader.getExtensions().extensions.filter((extension) =>
           extension.resolvedPath.split(sep).join('/').endsWith('/' + suffix)).length, 1, suffix);
       }
@@ -124,13 +124,24 @@ for (const legacy of [false, true]) {
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
     if (legacy) {
+      const savedSettings = JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8"));
+      assert.equal(savedSettings.defaultModel, "keep-local-model");
       assert.equal(
-        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).defaultModel,
-        "keep-local-model",
+        savedSettings.packages.some((entry) =>
+          String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/"),
+        ),
+        false,
       );
       assert.equal(
-        JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8")).packages.some((entry) =>
-          String(typeof entry === "string" ? entry : entry.source).startsWith("local-packages/"),
+        savedSettings.packages.some(
+          (entry) => (typeof entry === "string" ? entry : entry.source) === "pi-gd",
+        ),
+        true,
+      );
+      assert.equal(
+        savedSettings.packages.some(
+          (entry) =>
+            (typeof entry === "string" ? entry : entry.source) === "toolkits/pi-agent-setup",
         ),
         false,
       );

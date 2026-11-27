@@ -9,6 +9,7 @@ import {
   toolkitCopyMatches,
   toolkitLinkMatches,
   toolkitPathHash,
+  toolkitPathStat,
   deployToolkitPackage,
   archiveToolkitLegacyPath,
   replaceToolkitPath,
@@ -16,6 +17,7 @@ import {
 } from "./toolkit-files.mjs";
 import { readToolkitJson, validateToolkitManifest } from "./toolkit-settings.mjs";
 import {
+  LEGACY_TOOLKIT_PACKAGE_SOURCE,
   TOOLKIT_PACKAGE_SOURCE,
   inspectToolkitInventory,
   validateToolkitResources,
@@ -414,7 +416,7 @@ export async function runToolkitSetup({
       `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`,
     );
     applied = true;
-    if (plan.resources.action !== "keep")
+    if (plan.resources.action !== "keep") {
       deployToolkitPackage({
         root,
         target: plan.resources.target,
@@ -422,6 +424,19 @@ export async function runToolkitSetup({
         link: plan.mode === "link",
         backupRoot,
       });
+      if (
+        plan.resources.legacyPackageTarget &&
+        toolkitPathStat(plan.resources.legacyPackageTarget)
+      ) {
+        archiveToolkitLegacyPath({
+          agentDir,
+          target: plan.resources.legacyPackageTarget,
+          backupRoot,
+          legacy: LEGACY_TOOLKIT_PACKAGE_SOURCE,
+          preservePath: true,
+        });
+      }
+    }
     if (plan.instructions.action !== "keep")
       replaceToolkitPath({
         target: plan.instructions.target,

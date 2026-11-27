@@ -15,7 +15,7 @@ import {
   toolkitPackageIdentity,
   toolkitPackageSource,
 } from "./toolkit-settings.mjs";
-import { TOOLKIT_PACKAGE_SOURCE } from "./toolkit-inventory.mjs";
+import { LEGACY_TOOLKIT_PACKAGE_SOURCE, TOOLKIT_PACKAGE_SOURCE } from "./toolkit-inventory.mjs";
 import { planToolkitInstructions } from "./toolkit-instructions.mjs";
 
 /** Read old ownership records conservatively; v1 has no package baseline and cannot prove a safe overwrite. */
@@ -124,19 +124,76 @@ export function reconcileToolkitExclusions(
   return { settings: result, exclusions };
 }
 
-function planPackageFiles({ root, agentDir, files, state, mode, replaceResources }) {
-  const target = join(agentDir, TOOLKIT_PACKAGE_SOURCE);
-  const exists = Boolean(toolkitPathStat(target));
+function registerOwnedToolkitPackage(settings, agentDir) {
+  const result = structuredClone(settings);
+  if (result.packages !== undefined && !Array.isArray(result.packages)) {
+    throw new Error("Invalid Pi packages setting: expected an array");
+  }
+  const packages = result.packages ?? [];
+  const legacyIdentity = toolkitPackageIdentity(LEGACY_TOOLKIT_PACKAGE_SOURCE, agentDir);
+  const currentIdentity = toolkitPackageIdentity(TOOLKIT_PACKAGE_SOURCE, agentDir);
+  const hasCurrent = packages.some(
+    (entry) => toolkitPackageIdentity(toolkitPackageSource(entry), agentDir) === currentIdentity,
+  );
+  const migrated = [];
+  for (const entry of packages) {
+    if (toolkitPackageIdentity(toolkitPackageSource(entry), agentDir) === legacyIdentity) {
+      if (!hasCurrent) {
+        migrated.push(
+          typeof entry === "string"
+            ? TOOLKIT_PACKAGE_SOURCE
+            : { ...entry, source: TOOLKIT_PACKAGE_SOURCE },
+        );
+      }
+      continue;
+    }
+    migrated.push(entry);
+  }
+  result.packages = migrated;
+  return registerToolkitPackage(result, TOOLKIT_PACKAGE_SOURCE, agentDir);
+}
+
+function packageTargetState(candidate, { root, files, state, mode }) {
   const matches =
-    mode === "link" ? toolkitLinkMatches(target, root) : toolkitCopyMatches(target, files);
+    mode === "link" ? toolkitLinkMatches(candidate, root) : toolkitCopyMatches(candidate, files);
   const baseline =
     state.ownsPackage &&
-    (state.packageHash === toolkitPathHash(target, { ignoreDependencies: true }) ||
-      toolkitLinkMatches(target, root));
+    (state.packageHash === toolkitPathHash(candidate, { ignoreDependencies: true }) ||
+      toolkitLinkMatches(candidate, root));
+  return { matches, baseline };
+}
+
+function planPackageFiles({ root, agentDir, files, state, mode, replaceResources }) {
+  const target = join(agentDir, TOOLKIT_PACKAGE_SOURCE);
+  const legacyTarget = join(agentDir, LEGACY_TOOLKIT_PACKAGE_SOURCE);
+  const exists = Boolean(toolkitPathStat(target));
+  const legacyExists = Boolean(toolkitPathStat(legacyTarget));
+  if (!exists && legacyExists) {
+    const { matches, baseline } = packageTargetState(legacyTarget, { root, files, state, mode });
+    const conflict = !matches && !baseline && !replaceResources;
+    return {
+      id: "resources",
+      target,
+      diffTarget: legacyTarget,
+      legacyPackageTarget: legacyTarget,
+      action: conflict ? "conflict" : "install",
+      owned: Boolean(state.ownsPackage || replaceResources || !conflict),
+      register: !conflict,
+      message: "Custom resources",
+      conflictMessage: "Custom resources contain local changes or have no recorded baseline.",
+    };
+  }
+  const { matches, baseline } = packageTargetState(target, { root, files, state, mode });
   const conflict = exists && !matches && !baseline && !replaceResources;
+  const legacyState = legacyExists
+    ? packageTargetState(legacyTarget, { root, files, state, mode })
+    : undefined;
+  const archiveLegacy =
+    legacyExists && !conflict && (replaceResources || legacyState.matches || legacyState.baseline);
   return {
     id: "resources",
     target,
+    ...(archiveLegacy ? { legacyPackageTarget: legacyTarget } : {}),
     action: !exists ? "install" : matches ? "keep" : conflict ? "conflict" : "update",
     owned: Boolean(state.ownsPackage || !exists || replaceResources),
     register: !conflict,
@@ -226,7 +283,10 @@ export function planToolkitSetup({
     : options.copy
       ? "copy"
       : (state.mode ??
-        (toolkitLinkMatches(join(agentDir, TOOLKIT_PACKAGE_SOURCE), root) ? "link" : "copy"));
+        (toolkitLinkMatches(join(agentDir, TOOLKIT_PACKAGE_SOURCE), root) ||
+        toolkitLinkMatches(join(agentDir, LEGACY_TOOLKIT_PACKAGE_SOURCE), root)
+          ? "link"
+          : "copy"));
   const resources = planPackageFiles({
     root,
     agentDir,
@@ -242,8 +302,7 @@ export function planToolkitSetup({
     replaceConfig: options["replace-config"],
   });
   let nextSettings = mergeToolkitPreferences(settings, preferences, options["apply-preferences"]);
-  if (resources.register)
-    nextSettings = registerToolkitPackage(nextSettings, TOOLKIT_PACKAGE_SOURCE, agentDir);
+  if (resources.register) nextSettings = registerOwnedToolkitPackage(nextSettings, agentDir);
   const packages = inventory.packages
     .filter((entry) => selectedIds.includes(entry.id))
     .map((entry) => {
@@ -297,9 +356,10 @@ export function planToolkitSetup({
         : entry === instructions
           ? toolkitContentHash(entry.content)
           : (entry.desired ?? entry.source);
+    const signatureTarget = entry.diffTarget ?? entry.target;
     const signature = toolkitContentHash(
       JSON.stringify([
-        entry.target ? toolkitPathHash(entry.target) : (entry.installedPath ?? null),
+        signatureTarget ? toolkitPathHash(signatureTarget) : (entry.installedPath ?? null),
         desired,
       ]),
     );
@@ -314,12 +374,17 @@ export function planToolkitSetup({
       entry.keptConflict = true;
       keptConflicts[key] = signature;
     } else if (decision === "replace" || decision === "repair") {
-      entry.action = entry.target ? "update" : "repair";
+      entry.action =
+        entry === resources && !toolkitPathStat(entry.target)
+          ? "install"
+          : entry.target
+            ? "update"
+            : "repair";
       delete keptConflicts[key];
       if (entry === resources) {
         entry.owned = true;
         entry.register = true;
-        nextSettings = registerToolkitPackage(nextSettings, TOOLKIT_PACKAGE_SOURCE, agentDir);
+        nextSettings = registerOwnedToolkitPackage(nextSettings, agentDir);
       } else if (entry === instructions) entry.owned = true;
       else nextSettings = registerToolkitPackage(nextSettings, entry.source, agentDir);
     }
@@ -431,6 +496,7 @@ export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cl
     "toolkit-state.json",
     "APPEND_SYSTEM.md",
     TOOLKIT_PACKAGE_SOURCE,
+    LEGACY_TOOLKIT_PACKAGE_SOURCE,
   ].map((path) => join(agentDir, path));
   for (const resource of inventory.resources)
     for (const legacy of resource.legacy)
@@ -442,7 +508,7 @@ export function snapshotToolkitPlan({ root, agentDir, packageJson, inventory, cl
     source,
     preferences: toolkitPathHash(join(root, "preferences.json")),
     manifest: toolkitPathHash(join(root, "manifest.json")),
-    instructions: toolkitPathHash(join(root, "dotfiles/APPEND_SYSTEM.md")),
+    instructions: toolkitPathHash(join(root, "APPEND_SYSTEM.md")),
     paths: [...new Set(paths)].map((path) => [path, toolkitPathHash(path)]),
   });
 }

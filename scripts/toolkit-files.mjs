@@ -8,6 +8,7 @@ import {
   readlinkSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -65,7 +66,7 @@ export function resolveToolkitAgentDir(root, requested) {
   return agentDir;
 }
 
-/** Keep installer writes inside the agent directory; only the two deliberate resource links are allowed. */
+/** Keep installer writes inside the agent directory; the deployed package link is checked separately. */
 export function assertToolkitWritePaths(agentDir) {
   for (const name of [
     "toolkits",
@@ -215,7 +216,13 @@ export function deployToolkitPackage({ root, target, files, link, backupRoot }) 
 }
 
 /** Archive a manifest-listed legacy resource without following a link or deleting its contents. */
-export function archiveToolkitLegacyPath({ agentDir, target, backupRoot, legacy }) {
+export function archiveToolkitLegacyPath({
+  agentDir,
+  target,
+  backupRoot,
+  legacy,
+  preservePath = false,
+}) {
   if (!isInside(agentDir, target) || !toolkitPathStat(target))
     throw new Error(`Invalid toolkit legacy path: ${target}`);
   let parent = dirname(target);
@@ -227,10 +234,15 @@ export function archiveToolkitLegacyPath({ agentDir, target, backupRoot, legacy 
   const backup = join(
     backupRoot,
     "legacy",
-    toolkitPathStat(target).isDirectory() ? dirname(legacy) : legacy,
+    !preservePath && toolkitPathStat(target).isDirectory() ? dirname(legacy) : legacy,
   );
   mkdirSync(dirname(backup), { recursive: true, mode: 0o700 });
   renameSync(target, backup);
+  if (preservePath && dirname(target) !== agentDir) {
+    try {
+      if (!readdirSync(dirname(target)).length) rmdirSync(dirname(target));
+    } catch {}
+  }
 }
 
 /** Fingerprint deployed files and links without traversing symlinks; missing paths have a null fingerprint. */

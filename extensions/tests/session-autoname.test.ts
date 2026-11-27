@@ -6,7 +6,7 @@ import {
   normalizeSessionNamingTitle,
   shouldAutoNameSession,
   type SessionAutoNameInput,
-} from "../gd-session-autoname/session-autoname.ts";
+} from "../pi-session-autoname/session-autoname.ts";
 
 const autoNameInput: SessionAutoNameInput = {
   enabled: true,

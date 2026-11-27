@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Footer } from "../gd-footer/footer.ts";
+import { Footer } from "../pi-footer/footer.ts";
 import { fetchAntigravityUsage } from "./antigravity.ts";
 import { fetchClaudeUsage } from "./claude.ts";
 import { fetchCursorUsage, retryCursorKeychain } from "./cursor.ts";

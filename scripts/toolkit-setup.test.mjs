@@ -33,17 +33,17 @@ function fixture(t) {
   const agentDir = join(base, "agent");
   mkdirSync(join(base, ".git"));
   for (const dir of ["extensions", "skills/demo", "local-packages/local"])
-    mkdirSync(join(root, "dotfiles", dir), { recursive: true });
+    mkdirSync(join(root, dir), { recursive: true });
   const put = (name, value) => {
     const path = join(root, name);
     writeFileSync(path, typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`);
   };
   put("package.json", {
-    name: "@gdezan/pi-agent-setup",
-    files: ["dotfiles/extensions", "dotfiles/skills", "dotfiles/local-packages"],
+    name: "@gdezan/pi-gd",
+    files: ["extensions", "skills", "local-packages"],
     pi: {
-      extensions: ["./dotfiles/extensions/demo.ts", "./dotfiles/local-packages/local/index.ts"],
-      skills: ["./dotfiles/skills"],
+      extensions: ["./extensions/demo.ts", "./local-packages/local/index.ts"],
+      skills: ["./skills"],
     },
   });
   put("manifest.json", {
@@ -52,20 +52,20 @@ function fixture(t) {
       {
         id: "demo",
         kind: "extensions",
-        path: "dotfiles/extensions/demo.ts",
+        path: "extensions/demo.ts",
         legacy: ["extensions/demo.ts"],
       },
       {
         id: "local",
         kind: "extensions",
-        path: "dotfiles/local-packages/local/index.ts",
+        path: "local-packages/local/index.ts",
         legacy: ["local-packages/local/index.ts"],
         packageName: "@local/local",
       },
       {
         id: "demo-skill",
         kind: "skills",
-        path: "dotfiles/skills/demo/SKILL.md",
+        path: "skills/demo/SKILL.md",
         legacy: ["skills/demo/SKILL.md"],
       },
     ],
@@ -75,14 +75,14 @@ function fixture(t) {
     ],
   });
   put("preferences.json", { theme: "dark", terminal: { showTerminalProgress: true } });
-  put("dotfiles/APPEND_SYSTEM.md", "Shared instructions\n");
-  put("dotfiles/extensions/demo.ts", "export default function demo() {}\n");
-  put("dotfiles/skills/demo/SKILL.md", "---\nname: demo\ndescription: Demo skill\n---\nDemo\n");
-  put("dotfiles/local-packages/local/package.json", {
+  put("APPEND_SYSTEM.md", "Shared instructions\n");
+  put("extensions/demo.ts", "export default function demo() {}\n");
+  put("skills/demo/SKILL.md", "---\nname: demo\ndescription: Demo skill\n---\nDemo\n");
+  put("local-packages/local/package.json", {
     name: "@local/local",
     pi: { extensions: ["./index.ts"] },
   });
-  put("dotfiles/local-packages/local/index.ts", "export default function local() {}\n");
+  put("local-packages/local/index.ts", "export default function local() {}\n");
   const installed = [];
   const output = {
     isTTY: false,
@@ -136,12 +136,12 @@ function writeJson(path, value) {
 
 test("copy setup installs selected local runtime dependencies and stays unchanged on rerun", async (t) => {
   const f = fixture(t);
-  f.put("dotfiles/local-packages/local/package.json", {
+  f.put("local-packages/local/package.json", {
     name: "@local/local",
     dependencies: { "fixture-renderer": "1.0.0" },
     pi: { extensions: ["./index.ts"] },
   });
-  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  f.put("local-packages/local/package-lock.json", { lockfileVersion: 3 });
   const installs = [];
   const installExtensionDependencies = async (options) => {
     const { installToolkitExtensionDependencies } = await import("./toolkit-dependencies.mjs");
@@ -162,7 +162,7 @@ test("copy setup installs selected local runtime dependencies and stays unchange
   await f.run(["--skip-packages", "--extensions", "demo"], f.install, extra);
   assert.equal(installs.length, 0, "Deselected extensions must not install dependencies");
   await f.run(["--skip-packages", "--extensions", "demo,local"], f.install, extra);
-  const deployed = join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/local-packages/local");
+  const deployed = join(f.agentDir, "pi-gd/local-packages/local");
   assert.equal(existsSync(join(deployed, "node_modules/fixture-renderer/package.json")), true);
   assert.equal(installs.length, 1);
   assert.equal((await f.run([], f.install, extra)).status, "unchanged");
@@ -180,11 +180,11 @@ test("copy setup installs selected local runtime dependencies and stays unchange
 
 test("linked local runtime dependencies reinstall when their lockfile changes", async (t) => {
   const f = fixture(t);
-  f.put("dotfiles/local-packages/local/package.json", {
+  f.put("local-packages/local/package.json", {
     name: "@local/local",
     dependencies: { "fixture-renderer": "1.0.0" },
   });
-  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  f.put("local-packages/local/package-lock.json", { lockfileVersion: 3 });
   let installs = 0;
   const extra = {
     installExtensionDependencies: async (options) => {
@@ -196,7 +196,7 @@ test("linked local runtime dependencies reinstall when their lockfile changes", 
     },
   };
   await f.run(["--skip-packages", "--link"], f.install, extra);
-  f.put("dotfiles/local-packages/local/package-lock.json", {
+  f.put("local-packages/local/package-lock.json", {
     lockfileVersion: 3,
     packages: { nested: { version: "2.0.0" } },
   });
@@ -207,12 +207,12 @@ test("linked local runtime dependencies reinstall when their lockfile changes", 
 
 test("an interrupted local runtime install retries without treating its deployment as a conflict", async (t) => {
   const f = fixture(t);
-  f.put("dotfiles/local-packages/local/package.json", {
+  f.put("local-packages/local/package.json", {
     name: "@local/local",
     dependencies: { "fixture-renderer": "1.0.0" },
     pi: { extensions: ["./index.ts"] },
   });
-  f.put("dotfiles/local-packages/local/package-lock.json", { lockfileVersion: 3 });
+  f.put("local-packages/local/package-lock.json", { lockfileVersion: 3 });
   let attempts = 0;
   const extra = {
     installExtensionDependencies: async (options) => {
@@ -224,7 +224,7 @@ test("an interrupted local runtime install retries without treating its deployme
     },
   };
   await assert.rejects(f.run(undefined, f.install, extra), /Interrupted fixture install/);
-  const deployed = join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/local-packages/local");
+  const deployed = join(f.agentDir, "pi-gd/local-packages/local");
   assert.equal(existsSync(join(deployed, ".toolkit-dependencies.pending")), true);
   assert.equal((await f.run(undefined, f.install, extra)).status, "applied");
   assert.equal(attempts, 2);
@@ -235,21 +235,21 @@ test("an interrupted local runtime install retries without treating its deployme
 test("copy setup installs only allowlisted resources and seeds settings", async (t) => {
   const f = fixture(t);
   f.put("unrelated-secret.txt", "never copy");
-  mkdirSync(join(f.root, "dotfiles/skills/demo/__pycache__"));
-  f.put("dotfiles/skills/demo/__pycache__/cache.pyc", "never copy");
+  mkdirSync(join(f.root, "skills/demo/__pycache__"));
+  f.put("skills/demo/__pycache__/cache.pyc", "never copy");
   await f.run();
   assert.deepEqual(json(join(f.agentDir, "settings.json")), {
     theme: "dark",
     terminal: { showTerminalProgress: true },
-    packages: ["toolkits/pi-agent-setup"],
+    packages: ["pi-gd"],
   });
-  const pkg = join(f.agentDir, "toolkits/pi-agent-setup");
+  const pkg = join(f.agentDir, "pi-gd");
   assert.equal(
-    readFileSync(join(pkg, "dotfiles/extensions/demo.ts"), "utf8"),
+    readFileSync(join(pkg, "extensions/demo.ts"), "utf8"),
     "export default function demo() {}\n",
   );
   assert.equal(existsSync(join(pkg, "unrelated-secret.txt")), false);
-  assert.equal(existsSync(join(pkg, "dotfiles/skills/demo/__pycache__")), false);
+  assert.equal(existsSync(join(pkg, "skills/demo/__pycache__")), false);
   assert.equal(existsSync(join(f.agentDir, "auth.json")), false);
   assert.equal(existsSync(join(f.agentDir, "extensions")), false);
   assert.deepEqual(f.installed, []);
@@ -263,7 +263,7 @@ test("reruns preserve runtime settings, credentials, extra packages, and toolkit
     lastChangelogVersion: "future",
     theme: "light",
     externalEditor: "local-editor",
-    packages: ["npm:extra", { source: "toolkits/pi-agent-setup", extensions: [] }],
+    packages: ["npm:extra", { source: "pi-gd", extensions: [] }],
   };
   writeJson(join(f.agentDir, "settings.json"), settings);
   writeFileSync(join(f.agentDir, "auth.json"), "local secret");
@@ -281,23 +281,20 @@ test("reruns preserve runtime settings, credentials, extra packages, and toolkit
 test("link and copy modes keep one package registration and never symlink settings", async (t) => {
   const f = fixture(t);
   await f.run(["--link", "--skip-packages"]);
-  assert.equal(readlinkSync(join(f.agentDir, "toolkits/pi-agent-setup")), f.root);
+  assert.equal(readlinkSync(join(f.agentDir, "pi-gd")), f.root);
   assert.equal(lstatSync(join(f.agentDir, "APPEND_SYSTEM.md")).isSymbolicLink(), false);
   assert.match(
     readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"),
-    /<!-- BEGIN pi-agent-setup:shared -->/,
+    /<!-- BEGIN pi-gd:shared -->/,
   );
   assert.equal(lstatSync(join(f.agentDir, "settings.json")).isSymbolicLink(), false);
   await f.run();
-  assert.equal(lstatSync(join(f.agentDir, "toolkits/pi-agent-setup")).isSymbolicLink(), true);
+  assert.equal(lstatSync(join(f.agentDir, "pi-gd")).isSymbolicLink(), true);
   await f.run(["--copy", "--skip-packages"]);
-  assert.equal(lstatSync(join(f.agentDir, "toolkits/pi-agent-setup")).isDirectory(), true);
+  assert.equal(lstatSync(join(f.agentDir, "pi-gd")).isDirectory(), true);
   assert.equal(lstatSync(join(f.agentDir, "APPEND_SYSTEM.md")).isSymbolicLink(), false);
-  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
-  assert.equal(
-    readFileSync(join(f.root, "dotfiles/APPEND_SYSTEM.md"), "utf8"),
-    "Shared instructions\n",
-  );
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd"]);
+  assert.equal(readFileSync(join(f.root, "APPEND_SYSTEM.md"), "utf8"), "Shared instructions\n");
 });
 
 test("dry runs do not create a destination or execute package commands", async (t) => {
@@ -334,7 +331,7 @@ test("local extension selection controls bundled load paths and is reusable", as
   const f = fixture(t);
   await f.run(["--skip-packages", "--extensions", "demo"]);
   assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
-    { source: "toolkits/pi-agent-setup", extensions: ["-dotfiles/local-packages/local/index.ts"] },
+    { source: "pi-gd", extensions: ["-local-packages/local/index.ts"] },
   ]);
   assert.deepEqual(json(join(f.agentDir, "toolkit-state.json")).selectedExtensions, ["demo"]);
   await f.run(["--skip-packages"]);
@@ -343,8 +340,8 @@ test("local extension selection controls bundled load paths and is reusable", as
   await f.run(["--skip-packages", "--skip-extensions"]);
   assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
     {
-      source: "toolkits/pi-agent-setup",
-      extensions: ["-dotfiles/extensions/demo.ts", "-dotfiles/local-packages/local/index.ts"],
+      source: "pi-gd",
+      extensions: ["-extensions/demo.ts", "-local-packages/local/index.ts"],
     },
   ]);
 });
@@ -379,11 +376,11 @@ test("malformed settings and forbidden preference keys fail before deployment", 
   mkdirSync(f.agentDir);
   writeFileSync(join(f.agentDir, "settings.json"), "not json");
   await assert.rejects(f.run(), SyntaxError);
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
   writeJson(join(f.agentDir, "settings.json"), {});
   f.put("preferences.json", { defaultModel: "shared-model" });
   await assert.rejects(f.run(), /Unmanaged toolkit preference/);
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
 });
 
 test("local instruction conflicts require explicit replacement and retain a backup", async (t) => {
@@ -391,7 +388,7 @@ test("local instruction conflicts require explicit replacement and retain a back
   mkdirSync(f.agentDir);
   writeFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "local instructions");
   await assert.rejects(f.run(), /Toolkit decision required/);
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
   await f.run(["--skip-packages", "--replace-config"]);
   const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
   assert.equal(
@@ -403,14 +400,14 @@ test("local instruction conflicts require explicit replacement and retain a back
 test("source-owned instruction updates are applied but edited copies are protected", async (t) => {
   const f = fixture(t);
   await f.run();
-  f.put("dotfiles/APPEND_SYSTEM.md", "updated source\n");
+  f.put("APPEND_SYSTEM.md", "updated source\n");
   await f.run();
   assert.match(
     readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"),
-    /\nupdated source\n<!-- END pi-agent-setup:shared -->/,
+    /\nupdated source\n<!-- END pi-gd:shared -->/,
   );
   writeFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "local edit\n");
-  f.put("dotfiles/APPEND_SYSTEM.md", "another source update\n");
+  f.put("APPEND_SYSTEM.md", "another source update\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
 });
 
@@ -425,7 +422,7 @@ test("shared instruction updates preserve all outside text and ignore local-only
   const before = lstatSync(path).mtimeMs;
   assert.equal((await f.run()).status, "unchanged");
   assert.equal(lstatSync(path).mtimeMs, before);
-  f.put("dotfiles/APPEND_SYSTEM.md", "New shared rules\n");
+  f.put("APPEND_SYSTEM.md", "New shared rules\n");
   await f.run();
   assert.equal(
     readFileSync(path, "utf8"),
@@ -464,7 +461,7 @@ test("adopting unmarked instructions preserves unknown content and backs up the 
   const result = readFileSync(path, "utf8");
   assert.match(
     result,
-    /^<!-- BEGIN pi-agent-setup:shared -->\nShared instructions\n<!-- END pi-agent-setup:shared -->/,
+    /^<!-- BEGIN pi-gd:shared -->\nShared instructions\n<!-- END pi-gd:shared -->/,
   );
   assert.ok(result.endsWith(local));
   const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
@@ -482,7 +479,7 @@ test("legacy owned copies and source links migrate without duplicating shared ru
       mkdirSync(f.agentDir);
       const path = join(f.agentDir, "APPEND_SYSTEM.md");
       if (mode === "link") {
-        if (!trySymlink(t, join(f.root, "dotfiles/APPEND_SYSTEM.md"), path, "file")) return;
+        if (!trySymlink(t, join(f.root, "APPEND_SYSTEM.md"), path, "file")) return;
       } else writeFileSync(path, "Old shared version\n");
       writeJson(join(f.agentDir, "toolkit-state.json"), {
         version: 2,
@@ -495,18 +492,15 @@ test("legacy owned copies and source links migrate without duplicating shared ru
       const result = readFileSync(path, "utf8");
       assert.equal(result.split("Shared instructions").length - 1, 1);
       assert.doesNotMatch(result, /Old shared version/);
-      assert.equal(
-        readFileSync(join(f.root, "dotfiles/APPEND_SYSTEM.md"), "utf8"),
-        "Shared instructions\n",
-      );
+      assert.equal(readFileSync(join(f.root, "APPEND_SYSTEM.md"), "utf8"), "Shared instructions\n");
       assert.equal((await f.run()).status, "unchanged");
     });
   }
 });
 
 test("invalid instruction markers fail before any deployment, even with replacement requested", async (t) => {
-  const begin = "<!-- BEGIN pi-agent-setup:shared -->";
-  const end = "<!-- END pi-agent-setup:shared -->";
+  const begin = "<!-- BEGIN pi-gd:shared -->";
+  const end = "<!-- END pi-gd:shared -->";
   for (const content of [
     begin,
     end,
@@ -514,6 +508,7 @@ test("invalid instruction markers fail before any deployment, even with replacem
     `${begin}\n${begin}\n${end}`,
     `${begin}\nx\n${end}\n${begin}\ny\n${end}`,
     `inline ${begin}\nx\n${end}`,
+    `<!-- BEGIN pi-agent-setup:shared -->\nx\n${end}`,
   ]) {
     const f = fixture(t);
     mkdirSync(f.agentDir);
@@ -524,24 +519,21 @@ test("invalid instruction markers fail before any deployment, even with replacem
       /Invalid.*instruction markers/,
     );
     assert.equal(readFileSync(path, "utf8"), content);
-    assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+    assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
   }
 });
 
 test("copy updates remove obsolete package files only after backing up the owned package", async (t) => {
   const f = fixture(t);
-  f.put("dotfiles/extensions/obsolete.ts", "old source");
+  f.put("extensions/obsolete.ts", "old source");
   await f.run();
-  rmSync(join(f.root, "dotfiles/extensions/obsolete.ts"));
+  rmSync(join(f.root, "extensions/obsolete.ts"));
   await f.run();
-  assert.equal(
-    existsSync(join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/extensions/obsolete.ts")),
-    false,
-  );
+  assert.equal(existsSync(join(f.agentDir, "pi-gd/extensions/obsolete.ts")), false);
   const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
   assert.equal(
     readFileSync(
-      join(f.agentDir, "toolkit-backups", backup, "package/dotfiles/extensions/obsolete.ts"),
+      join(f.agentDir, "toolkit-backups", backup, "package/extensions/obsolete.ts"),
       "utf8",
     ),
     "old source",
@@ -569,8 +561,8 @@ test("differing legacy resources require a decision, and keeping them avoids dup
   assert.match(readFileSync(join(f.agentDir, "extensions/demo.ts"), "utf8"), /legacyDemo/);
   const settings = json(join(f.agentDir, "settings.json"));
   assert.deepEqual(settings.packages[1].extensions, [
-    "-dotfiles/extensions/demo.ts",
-    "-dotfiles/local-packages/local/index.ts",
+    "-extensions/demo.ts",
+    "-local-packages/local/index.ts",
   ]);
   const inventory = await inspectToolkitInventory({
     root: f.root,
@@ -587,10 +579,10 @@ test("differing legacy resources require a decision, and keeping them avoids dup
 test("identical legacy extension, skill, and local package move to backup and activate the bundle", async (t) => {
   const f = fixture(t);
   const copies = [
-    ["dotfiles/extensions/demo.ts", "extensions/demo.ts"],
-    ["dotfiles/skills/demo/SKILL.md", "skills/demo/SKILL.md"],
-    ["dotfiles/local-packages/local/index.ts", "local-packages/local/index.ts"],
-    ["dotfiles/local-packages/local/package.json", "local-packages/local/package.json"],
+    ["extensions/demo.ts", "extensions/demo.ts"],
+    ["skills/demo/SKILL.md", "skills/demo/SKILL.md"],
+    ["local-packages/local/index.ts", "local-packages/local/index.ts"],
+    ["local-packages/local/package.json", "local-packages/local/package.json"],
   ];
   for (const [source, target] of copies) {
     const path = join(f.agentDir, target);
@@ -600,19 +592,19 @@ test("identical legacy extension, skill, and local package move to backup and ac
   writeJson(join(f.agentDir, "settings.json"), { packages: ["local-packages/local"] });
   const receipt = await f.run();
   assert.equal(receipt.actions.filter((entry) => entry.action === "migrate").length, 3);
-  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd"]);
   for (const [, target] of copies) assert.equal(existsSync(join(f.agentDir, target)), false);
   const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
   assert.equal(
     readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/extensions/demo.ts"), "utf8"),
-    readFileSync(join(f.root, "dotfiles/extensions/demo.ts"), "utf8"),
+    readFileSync(join(f.root, "extensions/demo.ts"), "utf8"),
   );
   assert.equal(
     readFileSync(
       join(f.agentDir, "toolkit-backups", backup, "legacy/local-packages/local/index.ts"),
       "utf8",
     ),
-    readFileSync(join(f.root, "dotfiles/local-packages/local/index.ts"), "utf8"),
+    readFileSync(join(f.root, "local-packages/local/index.ts"), "utf8"),
   );
   assert.equal((await f.run()).status, "unchanged");
 });
@@ -620,15 +612,15 @@ test("identical legacy extension, skill, and local package move to backup and ac
 test("legacy directory extensions move with their helper files rather than only index.ts", async (t) => {
   const f = fixture(t);
   const manifest = json(join(f.root, "manifest.json"));
-  manifest.resources[0].path = "dotfiles/extensions/demo/index.ts";
+  manifest.resources[0].path = "extensions/demo/index.ts";
   manifest.resources[0].legacy = ["extensions/demo/index.ts"];
   f.put("manifest.json", manifest);
   const pkg = json(join(f.root, "package.json"));
-  pkg.pi.extensions[0] = "./dotfiles/extensions/demo/index.ts";
+  pkg.pi.extensions[0] = "./extensions/demo/index.ts";
   f.put("package.json", pkg);
-  mkdirSync(join(f.root, "dotfiles/extensions/demo"));
-  f.put("dotfiles/extensions/demo/index.ts", "import './helper.js';\n");
-  f.put("dotfiles/extensions/demo/helper.js", "export const helper = true;\n");
+  mkdirSync(join(f.root, "extensions/demo"));
+  f.put("extensions/demo/index.ts", "import './helper.js';\n");
+  f.put("extensions/demo/helper.js", "export const helper = true;\n");
   const old = join(f.agentDir, "extensions/demo");
   mkdirSync(old, { recursive: true });
   writeFileSync(join(old, "index.ts"), "import './helper.js';\n");
@@ -651,7 +643,7 @@ test("differing legacy copy is preserved until explicit migration and then archi
   mkdirSync(dirname(old), { recursive: true });
   writeFileSync(old, "local custom extension\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   assert.equal(readFileSync(old, "utf8"), "local custom extension\n");
   await f.run(["--skip-packages", "--replace-legacy"]);
@@ -661,10 +653,7 @@ test("differing legacy copy is preserved until explicit migration and then archi
     readFileSync(join(f.agentDir, "toolkit-backups", backup, "legacy/extensions/demo.ts"), "utf8"),
     "local custom extension\n",
   );
-  assert.equal(
-    json(join(f.agentDir, "settings.json")).packages[0].source,
-    "toolkits/pi-agent-setup",
-  );
+  assert.equal(json(join(f.agentDir, "settings.json")).packages[0].source, "pi-gd");
 });
 
 test("a rerun removes a stale local-package registration after an interrupted legacy move", async (t) => {
@@ -673,10 +662,10 @@ test("a rerun removes a stale local-package registration after an interrupted le
   const statePath = join(f.agentDir, "toolkit-state.json");
   writeJson(statePath, { ...json(statePath), pendingLegacy: ["local-packages/local/index.ts"] });
   writeJson(join(f.agentDir, "settings.json"), {
-    packages: ["local-packages/local", "toolkits/pi-agent-setup"],
+    packages: ["local-packages/local", "pi-gd"],
   });
   await f.run();
-  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd"]);
   assert.deepEqual(json(statePath).pendingLegacy, []);
 });
 
@@ -690,7 +679,7 @@ test("interactive cleanup deletes only checked items without keeping a delete ch
   mkdirSync(dirname(other), { recursive: true });
   writeFileSync(other, "---\nname: other\ndescription: Other\n---\nOther\n");
   writeJson(join(f.agentDir, "settings.json"), {
-    packages: ["toolkits/pi-agent-setup", "npm:old", "npm:leave"],
+    packages: ["pi-gd", "npm:old", "npm:leave"],
   });
   const removed = [];
   const removePackage = async (source) => {
@@ -729,10 +718,7 @@ test("interactive cleanup deletes only checked items without keeping a delete ch
   assert.deepEqual(removed, ["npm:old"]);
   assert.equal(existsSync(extra), false);
   assert.equal(existsSync(other), true);
-  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
-    "toolkits/pi-agent-setup",
-    "npm:leave",
-  ]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd", "npm:leave"]);
   assert.equal((await f.run(["--skip-packages"])).status, "unchanged");
   assert.equal(existsSync(other), true);
 });
@@ -744,7 +730,7 @@ test("deleting a configured local extension package removes its registration too
   mkdirSync(path, { recursive: true });
   writeFileSync(join(path, "index.ts"), "export default function custom() {}\n");
   writeJson(join(f.agentDir, "settings.json"), {
-    packages: ["toolkits/pi-agent-setup", "extensions/custom"],
+    packages: ["pi-gd", "extensions/custom"],
   });
   const uiFactory = async () => ({
     interactive: true,
@@ -763,11 +749,11 @@ test("deleting a configured local extension package removes its registration too
   });
   const removePackage = async (source) => {
     assert.equal(source, "extensions/custom");
-    writeJson(join(f.agentDir, "settings.json"), { packages: ["toolkits/pi-agent-setup"] });
+    writeJson(join(f.agentDir, "settings.json"), { packages: ["pi-gd"] });
   };
   await f.run(["--skip-packages"], f.install, { uiFactory, removePackage });
   assert.equal(existsSync(path), false);
-  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd"]);
 });
 
 test("noninteractive setup never deletes unrelated resources", async (t) => {
@@ -782,7 +768,7 @@ test("noninteractive setup never deletes unrelated resources", async (t) => {
 test("pre-existing duplicate load paths fail verification instead of being reported as ready", async (t) => {
   const f = fixture(t);
   mkdirSync(join(f.agentDir, "extensions"), { recursive: true });
-  const source = readFileSync(join(f.root, "dotfiles/extensions/demo.ts"));
+  const source = readFileSync(join(f.root, "extensions/demo.ts"));
   writeFileSync(join(f.agentDir, "extensions/demo.ts"), source);
   writeFileSync(join(f.agentDir, "extensions/second-demo.ts"), source);
   await assert.rejects(
@@ -832,7 +818,7 @@ test("invalid backup destinations fail before any owned resources are deployed",
   mkdirSync(f.agentDir);
   writeFileSync(join(f.agentDir, "toolkit-backups"), "unrelated file");
   await assert.rejects(f.run(), /Invalid toolkit write destination/);
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
   assert.equal(readFileSync(join(f.agentDir, "toolkit-backups"), "utf8"), "unrelated file");
 });
 
@@ -958,12 +944,7 @@ test(
 test("an unchanged rerun neither rewrites files nor reinstalls selected packages", async (t) => {
   const f = fixture(t);
   await f.run(["--all-packages"]);
-  const paths = [
-    "settings.json",
-    "toolkit-state.json",
-    "APPEND_SYSTEM.md",
-    "toolkits/pi-agent-setup/package.json",
-  ];
+  const paths = ["settings.json", "toolkit-state.json", "APPEND_SYSTEM.md", "pi-gd/package.json"];
   const metadata = () =>
     paths.map((path) => {
       const stat = lstatSync(join(f.agentDir, path));
@@ -985,7 +966,7 @@ test("kept local instructions are remembered without adopting their contents", a
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   assert.equal(json(join(f.agentDir, "toolkit-state.json")).appendSystemHash, null);
   assert.equal((await f.run()).status, "unchanged");
-  f.put("dotfiles/APPEND_SYSTEM.md", "A changed shared version\n");
+  f.put("APPEND_SYSTEM.md", "A changed shared version\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
   assert.equal(
     readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"),
@@ -996,12 +977,12 @@ test("kept local instructions are remembered without adopting their contents", a
 test("local edits in copied resources stay protected across repeated source updates", async (t) => {
   const f = fixture(t);
   await f.run();
-  const path = join(f.agentDir, "toolkits/pi-agent-setup/dotfiles/extensions/demo.ts");
+  const path = join(f.agentDir, "pi-gd/extensions/demo.ts");
   writeFileSync(path, "local edit\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   assert.equal((await f.run()).status, "unchanged");
-  f.put("dotfiles/extensions/demo.ts", "updated shared resource\n");
+  f.put("extensions/demo.ts", "updated shared resource\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
   assert.equal(readFileSync(path, "utf8"), "local edit\n");
   await f.run(["--skip-packages", "--replace-resources"]);
@@ -1023,7 +1004,7 @@ test("v1 ownership records upgrade safely and do not infer a missing baseline", 
   assert.equal(json(statePath).version, 2);
   assert.equal((await f.run()).status, "unchanged");
   writeJson(statePath, old);
-  f.put("dotfiles/extensions/demo.ts", "a new source version\n");
+  f.put("extensions/demo.ts", "a new source version\n");
   await assert.rejects(f.run(), /Toolkit decision required/);
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   assert.equal(json(statePath).packageHash, null);
@@ -1032,7 +1013,7 @@ test("v1 ownership records upgrade safely and do not infer a missing baseline", 
 
 test("unmanaged package destinations can be kept without activating or owning them", async (t) => {
   const f = fixture(t);
-  const path = join(f.agentDir, "toolkits/pi-agent-setup");
+  const path = join(f.agentDir, "pi-gd");
   mkdirSync(path, { recursive: true });
   writeFileSync(join(path, "unrelated.txt"), "local file");
   await f.run(["--skip-packages", "--conflicts", "keep"]);
@@ -1047,25 +1028,20 @@ test("upgrading a moved resource preserves a user exclusion", async (t) => {
   await f.run();
   const settingsPath = join(f.agentDir, "settings.json");
   const settings = json(settingsPath);
-  settings.packages = [
-    { source: "toolkits/pi-agent-setup", extensions: ["-dotfiles/local-packages/local/index.ts"] },
-  ];
+  settings.packages = [{ source: "pi-gd", extensions: ["-local-packages/local/index.ts"] }];
   writeJson(settingsPath, settings);
-  renameSync(
-    join(f.root, "dotfiles/local-packages/local"),
-    join(f.root, "dotfiles/extensions/local"),
-  );
+  renameSync(join(f.root, "local-packages/local"), join(f.root, "extensions/local"));
   const pkg = json(join(f.root, "package.json"));
-  pkg.files = pkg.files.filter((path) => path !== "dotfiles/local-packages");
-  pkg.pi.extensions[1] = "./dotfiles/extensions/local/index.ts";
+  pkg.files = pkg.files.filter((path) => path !== "local-packages");
+  pkg.pi.extensions[1] = "./extensions/local/index.ts";
   f.put("package.json", pkg);
   const manifest = json(join(f.root, "manifest.json"));
   manifest.resources[1].previousPaths = [manifest.resources[1].path];
-  manifest.resources[1].path = "dotfiles/extensions/local/index.ts";
+  manifest.resources[1].path = "extensions/local/index.ts";
   f.put("manifest.json", manifest);
   await f.run();
   const updated = json(settingsPath);
-  assert.deepEqual(updated.packages[0].extensions, ["-dotfiles/extensions/local/index.ts"]);
+  assert.deepEqual(updated.packages[0].extensions, ["-extensions/local/index.ts"]);
   const inventory = await inspectToolkitInventory({
     root: f.root,
     agentDir: f.agentDir,
@@ -1082,8 +1058,8 @@ test("upgrading a moved resource preserves a user exclusion", async (t) => {
 });
 
 test("moved resources preserve exact user filters and replace toolkit-owned exclusions", () => {
-  const oldPath = "dotfiles/local-packages/local/index.ts";
-  const newPath = "dotfiles/extensions/local/index.ts";
+  const oldPath = "local-packages/local/index.ts";
+  const newPath = "extensions/local/index.ts";
   const resource = {
     id: "local",
     kind: "extensions",
@@ -1093,13 +1069,13 @@ test("moved resources preserve exact user filters and replace toolkit-owned excl
   };
   for (const prefix of ["+", "-"]) {
     const settings = {
-      packages: [{ source: "toolkits/pi-agent-setup", extensions: [`${prefix}${oldPath}`] }],
+      packages: [{ source: "pi-gd", extensions: [`${prefix}${oldPath}`] }],
     };
     const result = reconcileToolkitExclusions(settings, "/agent", [resource], ["local"]);
     assert.deepEqual(result.settings.packages[0].extensions, [`${prefix}${newPath}`]);
   }
   const settings = {
-    packages: [{ source: "toolkits/pi-agent-setup", extensions: [`-${oldPath}`] }],
+    packages: [{ source: "pi-gd", extensions: [`-${oldPath}`] }],
   };
   const result = reconcileToolkitExclusions(settings, "/agent", [resource], [], {
     extensions: [`-${oldPath}`],
@@ -1113,9 +1089,9 @@ test("legacy resource exclusions are removed when the old copy goes away, withou
   mkdirSync(join(f.agentDir, "extensions"), { recursive: true });
   const legacy = join(f.agentDir, "extensions/demo.ts");
   writeFileSync(legacy, "export default function legacy() {}\n");
-  const userFilter = "-dotfiles/local-packages/local/index.ts";
+  const userFilter = "-local-packages/local/index.ts";
   writeJson(join(f.agentDir, "settings.json"), {
-    packages: [{ source: "toolkits/pi-agent-setup", extensions: [userFilter] }],
+    packages: [{ source: "pi-gd", extensions: [userFilter] }],
   });
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   rmSync(legacy);
@@ -1129,7 +1105,7 @@ test("disabled local resources and disabled package types stay disabled", async 
   writeFileSync(join(f.agentDir, "extensions/demo.ts"), "export default function disabled() {}\n");
   writeJson(join(f.agentDir, "settings.json"), {
     extensions: ["-extensions/demo.ts"],
-    packages: [{ source: "toolkits/pi-agent-setup", extensions: [] }],
+    packages: [{ source: "pi-gd", extensions: [] }],
   });
   await f.run();
   const settings = json(join(f.agentDir, "settings.json"));
@@ -1152,13 +1128,13 @@ test("loose skills and explicit relocated extensions suppress only their bundled
     "---\nname: demo\ndescription: Local\n---\nLocal skill\n",
   );
   const relocated = join(f.base, "elsewhere.ts");
-  writeFileSync(relocated, readFileSync(join(f.root, "dotfiles/extensions/demo.ts")));
+  writeFileSync(relocated, readFileSync(join(f.root, "extensions/demo.ts")));
   writeJson(join(f.agentDir, "settings.json"), { extensions: [relocated] });
   await assert.rejects(f.run(), /Toolkit decision required/);
   await f.run(["--skip-packages", "--conflicts", "keep"]);
   const settings = json(join(f.agentDir, "settings.json"));
-  assert.deepEqual(settings.packages[0].extensions, ["-dotfiles/extensions/demo.ts"]);
-  assert.deepEqual(settings.packages[0].skills, ["-dotfiles/skills/demo/SKILL.md"]);
+  assert.deepEqual(settings.packages[0].extensions, ["-extensions/demo.ts"]);
+  assert.deepEqual(settings.packages[0].skills, ["-skills/demo/SKILL.md"]);
 });
 
 test("repair needs an explicit decision and a successful retry does not repeat completed installs", async (t) => {
@@ -1203,7 +1179,7 @@ test("source changes during confirmation invalidate the plan before deployment",
     start() {},
     plan() {},
     async confirm() {
-      f.put("dotfiles/extensions/demo.ts", "changed during menu\n");
+      f.put("extensions/demo.ts", "changed during menu\n");
       return "apply";
     },
   });
@@ -1219,8 +1195,8 @@ test("changes to a legacy directory helper during confirmation cancel automatic 
   const f = fixture(t);
   const old = join(f.agentDir, "skills/demo");
   mkdirSync(old, { recursive: true });
-  writeFileSync(join(old, "SKILL.md"), readFileSync(join(f.root, "dotfiles/skills/demo/SKILL.md")));
-  f.put("dotfiles/skills/demo/asset.txt", "original\n");
+  writeFileSync(join(old, "SKILL.md"), readFileSync(join(f.root, "skills/demo/SKILL.md")));
+  f.put("skills/demo/asset.txt", "original\n");
   writeFileSync(join(old, "asset.txt"), "original\n");
   const uiFactory = async () => ({
     interactive: true,
@@ -1236,7 +1212,7 @@ test("changes to a legacy directory helper during confirmation cancel automatic 
     /Toolkit inputs changed/,
   );
   assert.equal(readFileSync(join(old, "asset.txt"), "utf8"), "changed during menu\n");
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
 });
 
 test("interrupted migration keeps ownership of old exclusions until settings update", async (t) => {
@@ -1248,15 +1224,13 @@ test("interrupted migration keeps ownership of old exclusions until settings upd
   const statePath = join(f.agentDir, "toolkit-state.json");
   const settingsPath = join(f.agentDir, "settings.json");
   const before = json(statePath);
-  assert.deepEqual(before.resourceExclusions.extensions, ["-dotfiles/extensions/demo.ts"]);
+  assert.deepEqual(before.resourceExclusions.extensions, ["-extensions/demo.ts"]);
   rmSync(old);
   writeJson(statePath, { ...before, pendingLegacy: ["extensions/demo.ts"] });
   await f.run();
-  const toolkit = json(settingsPath).packages.find(
-    (entry) => (entry.source ?? entry) === "toolkits/pi-agent-setup",
-  );
+  const toolkit = json(settingsPath).packages.find((entry) => (entry.source ?? entry) === "pi-gd");
   assert.equal(
-    typeof toolkit === "string" || !toolkit.extensions?.includes("-dotfiles/extensions/demo.ts"),
+    typeof toolkit === "string" || !toolkit.extensions?.includes("-extensions/demo.ts"),
     true,
   );
 });
@@ -1268,7 +1242,7 @@ test("another setup lock is preserved and prevents changes", async (t) => {
   writeFileSync(lock, "another setup\n");
   await assert.rejects(f.run(), /Toolkit setup is locked/);
   assert.equal(readFileSync(lock, "utf8"), "another setup\n");
-  assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
 });
 
 test("a lock from a dead setup process is recovered", async (t) => {
@@ -1354,10 +1328,7 @@ test("unknown duplicate contents discovered after a download require a decision 
         version: "1.0.0",
         pi: { extensions: ["./index.ts"] },
       });
-      writeFileSync(
-        join(path, "index.ts"),
-        readFileSync(join(f.root, "dotfiles/extensions/demo.ts")),
-      );
+      writeFileSync(join(path, "index.ts"), readFileSync(join(f.root, "extensions/demo.ts")));
     }),
     /New package resources need a decision/,
   );
@@ -1365,4 +1336,75 @@ test("unknown duplicate contents discovered after a download require a decision 
   await f.run(["--reuse-selection", "--conflicts", "keep"]);
   assert.deepEqual(f.installed, []);
   assert.equal((await f.run()).status, "unchanged");
+});
+
+test("existing toolkits/pi-agent-setup installs migrate to pi-gd and pi-gd:shared in copy and link modes", async (t) => {
+  for (const mode of ["copy", "link"]) {
+    await t.test(mode, async (t) => {
+      const f = fixture(t);
+      const legacyPkg = join(f.agentDir, "toolkits/pi-agent-setup");
+      mkdirSync(dirname(legacyPkg), { recursive: true });
+      if (mode === "link") {
+        if (!trySymlink(t, f.root, legacyPkg, "dir")) return;
+      } else {
+        mkdirSync(join(legacyPkg, "extensions"), { recursive: true });
+        writeFileSync(join(legacyPkg, "extensions/old.ts"), "old version\n");
+      }
+      const oldBlock =
+        "<!-- BEGIN pi-agent-setup:shared -->\nOld rules\n<!-- END pi-agent-setup:shared -->";
+      const localSuffix = "\n\n## Machine-specific instructions\nKeep local rule\n";
+      writeFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), oldBlock + localSuffix);
+      writeJson(join(f.agentDir, "settings.json"), {
+        packages: [
+          "npm:extra",
+          { source: "toolkits/pi-agent-setup", extensions: ["-local-packages/local/index.ts"] },
+        ],
+      });
+      writeJson(join(f.agentDir, "toolkit-state.json"), {
+        version: 2,
+        ownsPackage: true,
+        packageHash: toolkitPathHash(legacyPkg, { ignoreDependencies: true }),
+        appendSystemBlockHash: toolkitContentHash(oldBlock),
+        selectedPackages: [],
+        selectedExtensions: ["demo"],
+      });
+      await f.run(["--skip-packages"]);
+      assert.equal(existsSync(legacyPkg), false);
+      assert.equal(existsSync(join(f.agentDir, "toolkits")), false);
+      assert.equal(existsSync(join(f.agentDir, "pi-gd")), true);
+      if (mode === "link") assert.equal(readlinkSync(join(f.agentDir, "pi-gd")), f.root);
+      else assert.equal(lstatSync(join(f.agentDir, "pi-gd")).isDirectory(), true);
+      assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, [
+        "npm:extra",
+        { source: "pi-gd", extensions: ["-local-packages/local/index.ts"] },
+      ]);
+      assert.equal(
+        readFileSync(join(f.agentDir, "APPEND_SYSTEM.md"), "utf8"),
+        `<!-- BEGIN pi-gd:shared -->\nShared instructions\n<!-- END pi-gd:shared -->${localSuffix}`,
+      );
+      const backup = readdirSync(join(f.agentDir, "toolkit-backups"))[0];
+      assert.equal(
+        existsSync(join(f.agentDir, "toolkit-backups", backup, "legacy/toolkits/pi-agent-setup")),
+        true,
+      );
+      assert.equal((await f.run()).status, "unchanged");
+    });
+  }
+});
+
+test("local edits inside legacy toolkits/pi-agent-setup require a decision before migrating", async (t) => {
+  const f = fixture(t);
+  const legacyPkg = join(f.agentDir, "toolkits/pi-agent-setup");
+  mkdirSync(join(legacyPkg, "extensions"), { recursive: true });
+  writeFileSync(join(legacyPkg, "extensions/demo.ts"), "hand edited\n");
+  writeJson(join(f.agentDir, "settings.json"), { packages: ["toolkits/pi-agent-setup"] });
+  await assert.rejects(f.run(["--skip-packages"]), /Toolkit decision required/);
+  await f.run(["--skip-packages", "--conflicts", "keep"]);
+  assert.equal(existsSync(legacyPkg), true);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd")), false);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["toolkits/pi-agent-setup"]);
+  await f.run(["--skip-packages", "--replace-resources"]);
+  assert.equal(existsSync(legacyPkg), false);
+  assert.equal(existsSync(join(f.agentDir, "pi-gd/extensions/demo.ts")), true);
+  assert.deepEqual(json(join(f.agentDir, "settings.json")).packages, ["pi-gd"]);
 });

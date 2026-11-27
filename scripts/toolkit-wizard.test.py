@@ -167,25 +167,25 @@ class WizardTests(unittest.TestCase):
     def test_colored_diff_then_update_preserves_machine_instructions(self):
         self.target.mkdir()
         instructions = self.target / "APPEND_SYSTEM.md"
-        shared = (ROOT / "dotfiles" / "APPEND_SYSTEM.md").read_text()
-        edited = shared.replace("## Scope and completion", "## Locally edited shared heading", 1)
+        shared = (ROOT / "APPEND_SYSTEM.md").read_text()
+        edited = shared.replace("# Scope and completion", "# Locally edited shared heading", 1)
         local = "\n\n## Machine-specific instructions\nUse pi__ask_user_question here.\n"
-        instructions.write_text("<!-- BEGIN pi-agent-setup:shared -->\n" + edited +
-                                "<!-- END pi-agent-setup:shared -->" + local)
+        instructions.write_text("<!-- BEGIN pi-gd:shared -->\n" + edited +
+                                "<!-- END pi-gd:shared -->" + local)
         terminal = self.terminal("--skip-packages", "--skip-extensions", color=True, columns=80)
         terminal.wait_for("How should setup handle this?")
         terminal.send(b"\x1b[B\r")
         terminal.wait_for("Current installed APPEND_SYSTEM.md")
         terminal.wait_for("Proposed installed APPEND_SYSTEM.md")
         terminal.wait_for("How should setup handle this?")
-        self.assertIn(b"\x1b[31m-## Locally edited shared heading", terminal.raw)
-        self.assertIn(b"\x1b[32m+## Scope and completion", terminal.raw)
+        self.assertIn(b"\x1b[31m-# Locally edited shared heading", terminal.raw)
+        self.assertIn(b"\x1b[32m+# Scope and completion", terminal.raw)
         self.assertIn(b"\x1b[36m@@", terminal.raw)
         terminal.send(b"\x1b[B\x1b[B\r")
         terminal.wait_for("Apply these changes?")
         terminal.send(b"\r")
         self.assertEqual(terminal.finish(), 0)
-        expected = "<!-- BEGIN pi-agent-setup:shared -->\n" + shared + "<!-- END pi-agent-setup:shared -->" + local
+        expected = "<!-- BEGIN pi-gd:shared -->\n" + shared + "<!-- END pi-gd:shared -->" + local
         self.assertEqual(instructions.read_text(), expected)
         backups = list((self.target / "toolkit-backups").glob("*/APPEND_SYSTEM.md"))
         self.assertEqual(len(backups), 1)

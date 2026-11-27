@@ -4,7 +4,7 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   buildNextPromptContext,
   normalizeNextPromptSuggestion,
-} from "../gd-next-prompt/next-prompt-context.ts";
+} from "../pi-next-prompt/next-prompt-context.ts";
 
 const user = (text: string) => ({ type: "message", message: { role: "user", content: text } });
 const assistant = (text: string) => ({

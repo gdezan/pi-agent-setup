@@ -261,8 +261,9 @@ export async function createToolkitUI({ input, output, options, signal }) {
             common,
           );
         } else {
+          const diffRoot = entry.diffTarget ?? entry.target;
           const changes = [...files].filter(([path, file]) => {
-            const target = join(entry.target, path);
+            const target = join(diffRoot, path);
             return !toolkitPathStat(target)?.isFile() || !readFileSync(target).equals(file.content);
           });
           if (!changes.length) {
@@ -284,7 +285,7 @@ export async function createToolkitUI({ input, output, options, signal }) {
             }),
           );
           if (path === "back") continue;
-          const target = join(entry.target, path);
+          const target = join(diffRoot, path);
           const old = toolkitPathStat(target)?.isFile() ? readFileSync(target, "utf8") : "";
           clack.note(
             renderToolkitDiff(

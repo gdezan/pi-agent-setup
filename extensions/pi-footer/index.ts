@@ -6,7 +6,7 @@
  * statuses are hidden by default and can be toggled with /footer-statuses.
  *
  * Other extensions can register custom sections via:
- *   import { Footer } from "../gd-footer/footer.ts";
+ *   import { Footer } from "../pi-footer/footer.ts";
  *   Footer.registerSection({ id, align, order, render, dispose? });
  *
  * Note: pi's setFooter() API is singleton-style. Two unrelated custom-footer

@@ -9,7 +9,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
-import nextPrompt from "../gd-next-prompt/next-prompt-extension.ts";
+import nextPrompt from "../pi-next-prompt/next-prompt-extension.ts";
 
 const response = (text = "Yes, implement it") => ({
   role: "assistant",

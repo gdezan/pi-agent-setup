@@ -9,7 +9,7 @@ import {
   syncHerdrAgentName,
   type HerdrCommandRunner,
   type HerdrCommandResult,
-} from "../gd-session-autoname/session-autoname.ts";
+} from "../pi-session-autoname/session-autoname.ts";
 
 const HERDR_AGENT_NAME = /^[a-z][a-z0-9_-]{0,31}$/u;
 

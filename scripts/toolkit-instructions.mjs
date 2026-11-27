@@ -2,17 +2,29 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { toolkitContentHash, toolkitLinkMatches, toolkitPathStat } from "./toolkit-files.mjs";
 
-const BEGIN = "<!-- BEGIN pi-agent-setup:shared -->";
-const END = "<!-- END pi-agent-setup:shared -->";
+const BEGIN = "<!-- BEGIN pi-gd:shared -->";
+const END = "<!-- END pi-gd:shared -->";
+const LEGACY_BEGIN = "<!-- BEGIN pi-agent-setup:shared -->";
+const LEGACY_END = "<!-- END pi-agent-setup:shared -->";
 const LOCAL =
   "\n\n## Machine-specific instructions\n\nThese instructions supplement the shared rules above.\nWhere they conflict, follow these machine-specific rules.\n\n";
 
 function splitInstructions(content) {
-  const begins = content.split(BEGIN).length - 1;
-  const ends = content.split(END).length - 1;
-  if (!begins && !ends) return undefined;
-  const start = content.indexOf(BEGIN);
-  const end = content.indexOf(END);
+  const currentCount = content.split(BEGIN).length - 1 + (content.split(END).length - 1);
+  const legacyCount =
+    content.split(LEGACY_BEGIN).length - 1 + (content.split(LEGACY_END).length - 1);
+  if (!currentCount && !legacyCount) return undefined;
+  const invalid = () => {
+    throw new Error(
+      "Invalid system instruction markers: expected one ordered pair of standalone pi-gd:shared comments. Repair them before rerunning setup.",
+    );
+  };
+  if (currentCount > 0 && legacyCount > 0) invalid();
+  const [beginMarker, endMarker] = currentCount > 0 ? [BEGIN, END] : [LEGACY_BEGIN, LEGACY_END];
+  const begins = content.split(beginMarker).length - 1;
+  const ends = content.split(endMarker).length - 1;
+  const start = content.indexOf(beginMarker);
+  const end = content.indexOf(endMarker);
   const standalone = (index, marker) =>
     (index === 0 || content[index - 1] === "\n") &&
     /^(?:\r?\n|$)/.test(content.slice(index + marker.length));
@@ -20,25 +32,28 @@ function splitInstructions(content) {
     begins !== 1 ||
     ends !== 1 ||
     end <= start ||
-    !standalone(start, BEGIN) ||
-    !standalone(end, END)
+    !standalone(start, beginMarker) ||
+    !standalone(end, endMarker)
   ) {
-    throw new Error(
-      "Invalid system instruction markers: expected one ordered pair of standalone pi-agent-setup:shared comments. Repair them before rerunning setup.",
-    );
+    invalid();
   }
   return {
     before: content.slice(0, start),
-    block: content.slice(start, end + END.length),
-    after: content.slice(end + END.length),
+    block: content.slice(start, end + endMarker.length),
+    after: content.slice(end + endMarker.length),
   };
 }
 
 export function planToolkitInstructions({ root, agentDir, state, replaceConfig }) {
-  const source = join(root, "dotfiles/APPEND_SYSTEM.md");
+  const source = join(root, "APPEND_SYSTEM.md");
   const target = join(agentDir, "APPEND_SYSTEM.md");
   const shared = readFileSync(source, "utf8");
-  if (shared.includes(BEGIN) || shared.includes(END))
+  if (
+    shared.includes(BEGIN) ||
+    shared.includes(END) ||
+    shared.includes(LEGACY_BEGIN) ||
+    shared.includes(LEGACY_END)
+  )
     throw new Error("Shared instruction source must not contain managed instruction markers.");
   const block = `${BEGIN}\n${shared}${shared.endsWith("\n") ? "" : "\n"}${END}`;
   const blockHash = toolkitContentHash(block);

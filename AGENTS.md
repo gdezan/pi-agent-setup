@@ -1,9 +1,8 @@
 # Ownership and change scope
 
 Limit extension changes to local extension resources maintained in this project, such as
-`dotfiles/extensions/gd-footer/`. These are our source files, not externally installed extension
-packages. See `package.json` and `manifest.json` for the resource declarations and external package
-list.
+`extensions/pi-footer/`. These are our source files, not externally installed extension packages.
+See `package.json` and `manifest.json` for the resource declarations and external package list.
 
 Externally installed extension packages are outside this project's change scope, even when gdezan
 owns them. Installing or configuring a package here does not make its source a local resource.

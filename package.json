@@ -1,15 +1,15 @@
 {
-  "name": "@gdezan/pi-agent-setup",
+  "name": "@gdezan/pi-gd",
   "version": "1.0.0",
   "private": true,
   "description": "Portable personal Pi resources and a selective, machine-local installer",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/gdezan/pi-agent-setup.git"
+    "url": "git+ssh://git@github.com/gdezan/pi-gd.git"
   },
   "files": [
-    "dotfiles/extensions"
+    "extensions"
   ],
   "type": "module",
   "scripts": {
@@ -19,8 +19,8 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "node --test scripts/*.test.mjs",
-    "test:resources": "node --experimental-strip-types --test dotfiles/extensions/gd-cache-observer/*.test.ts dotfiles/extensions/gd-footer/sections/*.test.ts dotfiles/extensions/tests/*.test.ts dotfiles/extensions/gd-ask-user-question/tests/*.test.ts && npm run test:footer-render",
-    "test:footer-render": "node --experimental-strip-types dotfiles/extensions/gd-footer/footer.render-check.ts",
+    "test:resources": "node --experimental-strip-types --test extensions/pi-cache-observer/*.test.ts extensions/pi-footer/sections/*.test.ts extensions/tests/*.test.ts extensions/pi-ask-user-question/tests/*.test.ts && npm run test:footer-render",
+    "test:footer-render": "node --experimental-strip-types extensions/pi-footer/footer.render-check.ts",
     "test:wizard": "python3 -B scripts/toolkit-wizard.test.py",
     "test:utility-tui": "python3 -B scripts/utility-model-tui.test.py"
   },
@@ -45,13 +45,13 @@
   },
   "pi": {
     "extensions": [
-      "./dotfiles/extensions/gd-footer/index.ts",
-      "./dotfiles/extensions/gd-favorites-cycle/index.ts",
-      "./dotfiles/extensions/gd-provider-usage/index.ts",
-      "./dotfiles/extensions/gd-session-autoname/index.ts",
-      "./dotfiles/extensions/gd-cache-observer/index.ts",
-      "./dotfiles/extensions/gd-ask-user-question/index.ts",
-      "./dotfiles/extensions/gd-next-prompt/index.ts"
+      "./extensions/pi-footer/index.ts",
+      "./extensions/pi-favorites-cycle/index.ts",
+      "./extensions/pi-provider-usage/index.ts",
+      "./extensions/pi-session-autoname/index.ts",
+      "./extensions/pi-cache-observer/index.ts",
+      "./extensions/pi-ask-user-question/index.ts",
+      "./extensions/pi-next-prompt/index.ts"
     ]
   }
 }

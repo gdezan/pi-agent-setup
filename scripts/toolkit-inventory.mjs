@@ -12,7 +12,8 @@ import {
 import { toolkitContentHash, toolkitPathHash } from "./toolkit-files.mjs";
 
 /** Stable package registration shared by inventory, planning, and deployment. */
-export const TOOLKIT_PACKAGE_SOURCE = "toolkits/pi-agent-setup";
+export const TOOLKIT_PACKAGE_SOURCE = "pi-gd";
+export const LEGACY_TOOLKIT_PACKAGE_SOURCE = "toolkits/pi-agent-setup";
 
 function resourceFile(path, kind) {
   if (!existsSync(path)) return path;
@@ -104,7 +105,10 @@ export async function inspectToolkitInventory({ root, agentDir, settings, manife
     }
     return { ...entry, source, registered: Boolean(registered), installedPath, present };
   });
-  const ownIdentity = toolkitPackageIdentity(TOOLKIT_PACKAGE_SOURCE, agentDir);
+  const ownIdentities = new Set([
+    toolkitPackageIdentity(TOOLKIT_PACKAGE_SOURCE, agentDir),
+    toolkitPackageIdentity(LEGACY_TOOLKIT_PACKAGE_SOURCE, agentDir),
+  ]);
   const resources = manifest.resources.map((resource) => {
     const legacyPaths = resource.legacy.map((path) => canonicalResource(join(agentDir, path)));
     const sourceFile = join(root, resource.path);
@@ -115,7 +119,7 @@ export async function inspectToolkitInventory({ root, agentDir, settings, manife
         if (
           entry.metadata.origin === "package" &&
           (!findToolkitPackage(settings.packages ?? [], entry.metadata.source, agentDir) ||
-            toolkitPackageIdentity(entry.metadata.source, agentDir) === ownIdentity)
+            ownIdentities.has(toolkitPackageIdentity(entry.metadata.source, agentDir)))
         )
           return false;
         const path = resourceFile(entry.path, resource.kind);

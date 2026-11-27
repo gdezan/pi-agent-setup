@@ -61,16 +61,12 @@ test("explicit preference application changes only shared keys", () => {
 });
 
 test("package registration preserves extra packages, pins, and object-form filters", () => {
-  const entry = { source: "/tmp/agent/toolkits/pi-agent-setup", extensions: [] };
+  const entry = { source: "/tmp/agent/pi-gd", extensions: [] };
   const settings = { packages: ["npm:extra@3.1", entry] };
+  assert.deepEqual(registerToolkitPackage(settings, "pi-gd", "/tmp/agent"), settings);
   assert.deepEqual(
-    registerToolkitPackage(settings, "toolkits/pi-agent-setup", "/tmp/agent"),
-    settings,
-  );
-  assert.deepEqual(
-    registerToolkitPackage({ packages: ["npm:extra"] }, "toolkits/pi-agent-setup", "/tmp/agent")
-      .packages,
-    ["npm:extra", "toolkits/pi-agent-setup"],
+    registerToolkitPackage({ packages: ["npm:extra"] }, "pi-gd", "/tmp/agent").packages,
+    ["npm:extra", "pi-gd"],
   );
 });
 
@@ -105,7 +101,7 @@ test("invalid and duplicate manifests fail before installation", () => {
     /Invalid toolkit package/,
   );
   assert.throws(
-    () => registerToolkitPackage({ packages: false }, "toolkits/pi-agent-setup", "/tmp"),
+    () => registerToolkitPackage({ packages: false }, "pi-gd", "/tmp"),
     /Invalid Pi packages setting/,
   );
 });

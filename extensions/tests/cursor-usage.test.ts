@@ -9,8 +9,8 @@ import {
   fetchCursorUsage,
   parseCursorUsage,
   retryCursorKeychain,
-} from "../gd-provider-usage/cursor.ts";
-import { UsagePopup } from "../gd-provider-usage/popup.ts";
+} from "../pi-provider-usage/cursor.ts";
+import { UsagePopup } from "../pi-provider-usage/popup.ts";
 
 const usage = {
   billingCycleStart: "2026-09-26T21:19:26.000Z",
@@ -101,7 +101,7 @@ test("Cursor desktop quota flows through refresh, footer and popup without crede
       },
       { label: "Other", usedPercent: 26, resetAt: 1793049566, windowSeconds: 2592000 },
     ]);
-    const { default: providerUsage } = await import("../gd-provider-usage/provider-usage.ts");
+    const { default: providerUsage } = await import("../pi-provider-usage/provider-usage.ts");
     const handlers = new Map<string, Function>();
     const commands = new Map<string, { handler: Function }>();
     let status = "";

@@ -5,6 +5,7 @@ import {
   toolkitPackageIdentity,
   toolkitPackageSource,
 } from "./toolkit-settings.mjs";
+import { LEGACY_TOOLKIT_PACKAGE_SOURCE, TOOLKIT_PACKAGE_SOURCE } from "./toolkit-inventory.mjs";
 import { toolkitPathStat } from "./toolkit-files.mjs";
 
 export const TOOLKIT_KEEP_FILE = "toolkit-keep.json";
@@ -81,7 +82,8 @@ export function listToolkitCleanupCandidates({
       .filter((entry) => selectedIds.includes(entry.id))
       .map((entry) => toolkitPackageIdentity(entry.source, agentDir)),
   );
-  const ownPackage = toolkitPackageIdentity("toolkits/pi-agent-setup", agentDir);
+  const ownPackage = toolkitPackageIdentity(TOOLKIT_PACKAGE_SOURCE, agentDir);
+  const legacyPackage = toolkitPackageIdentity(LEGACY_TOOLKIT_PACKAGE_SOURCE, agentDir);
   const legacy = new Set(
     manifest.resources.flatMap((entry) =>
       entry.legacy.map((path) =>
@@ -100,7 +102,8 @@ export function listToolkitCleanupCandidates({
   for (const entry of settings.packages ?? []) {
     const source = toolkitPackageSource(entry);
     const identity = toolkitPackageIdentity(source, agentDir);
-    if (identity === ownPackage || selectedSources.has(identity)) continue;
+    if (identity === ownPackage || identity === legacyPackage || selectedSources.has(identity))
+      continue;
     const local = !/^(npm:|git:|https?:\/\/|ssh:\/\/)/.test(source);
     const path = local ? identity.slice("local:".length) : undefined;
     if (path) packagePaths.add(path);

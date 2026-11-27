@@ -22,7 +22,7 @@ test("OpenAI shows verified shared-plan usage separately from Codex", async (t) 
         "openai-codex": { type: "oauth", access: "legacy-token", accountId: "legacy-account" },
       }),
     );
-    const { default: providerUsage } = await import("../gd-provider-usage/provider-usage.ts");
+    const { default: providerUsage } = await import("../pi-provider-usage/provider-usage.ts");
     const handlers = new Map<string, Function>();
     const commands = new Map<string, { handler: Function }>();
     const statuses: Array<string | undefined> = [];

@@ -35,6 +35,7 @@ test("cleanup lists only unselected packages and unrelated Pi resources", (t) =>
   };
   const settings = {
     packages: [
+      "pi-gd",
       "toolkits/pi-agent-setup",
       "npm:selected",
       "npm:unselected",
