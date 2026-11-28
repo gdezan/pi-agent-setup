@@ -4,9 +4,10 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
+  NEXT_PROMPT_MODES,
   parseUtilityModelConfig,
   readUtilitySettings,
-  saveNextPromptEnabled,
+  saveNextPromptSettings,
   utilitySettingsObject,
 } from "../utility-model/utility-model-config.ts";
 import {
@@ -25,6 +26,14 @@ function nextPromptReplyId(ctx: ExtensionContext): string | undefined {
         (entry.message.role === "assistant" || entry.message.role === "user"),
     );
   return latest?.type === "message" && latest.message.role === "assistant" ? latest.id : undefined;
+}
+
+function nextPromptMode(settings: Record<string, unknown>, ctx: ExtensionContext) {
+  const configured = NEXT_PROMPT_MODES.find((mode) => mode === settings.mode) ?? "auto";
+  const display =
+    configured === "auto" ? (ctx.mode === "rpc" ? "transcript" : "editor") : configured;
+  const available = ctx.mode === "tui" || (ctx.mode === "rpc" && display === "transcript");
+  return { configured, display, available };
 }
 
 export default function nextPrompt(pi: ExtensionAPI): void {
@@ -89,11 +98,12 @@ export default function nextPrompt(pi: ExtensionAPI): void {
   });
 
   pi.on("agent_settled", (event, ctx) => {
-    if (ctx.mode !== "tui" || event.aborted || ctx.hasPendingMessages() || ctx.ui.getEditorText())
-      return;
+    if (event.aborted || ctx.hasPendingMessages() || ctx.ui.getEditorText()) return;
     try {
       const settings = readUtilitySettings(ctx);
-      if (utilitySettingsObject(settings.nextPrompt).enabled === false) return;
+      const feature = utilitySettingsObject(settings.nextPrompt);
+      const { display, available } = nextPromptMode(feature, ctx);
+      if (feature.enabled === false || !available) return;
       const replyId = nextPromptReplyId(ctx);
       if (!replyId || attemptedReplies.has(replyId)) return;
       const context = buildNextPromptContext(ctx.sessionManager.buildSessionProjection().entries);
@@ -108,7 +118,7 @@ export default function nextPrompt(pi: ExtensionAPI): void {
       pending = controller;
       const sessionId = ctx.sessionManager.getSessionId();
       const started = performance.now();
-      void requestUtilityResponse(ctx, model, context, config.thinkingLevel, {
+      const request = requestUtilityResponse(ctx, model, context, config.thinkingLevel, {
         signal: controller.signal,
         timeoutMs: 10_000,
         maxTokens: 512,
@@ -130,14 +140,19 @@ export default function nextPrompt(pi: ExtensionAPI): void {
             nextPromptReplyId(ctx) !== replyId
           )
             return;
-          suggestion =
-            normalizeNextPromptSuggestion(
-              response.content
-                .filter((part) => part.type === "text")
-                .map((part) => part.text)
-                .join(""),
-            ) ?? "";
-          redraw();
+          const text = normalizeNextPromptSuggestion(
+            response.content
+              .filter((part) => part.type === "text")
+              .map((part) => part.text)
+              .join(""),
+          );
+          if (!text) return;
+          if (display === "transcript") {
+            ctx.ui.notify(`Next: ${text}`, "info");
+          } else {
+            suggestion = text;
+            redraw();
+          }
         })
         .catch(() => {
           if (!controller.signal.aborted && pending === controller)
@@ -146,28 +161,36 @@ export default function nextPrompt(pi: ExtensionAPI): void {
         .finally(() => {
           if (pending === controller) pending = undefined;
         });
+      // Pi emits the external settled event after awaited handlers; hosts can drop later notices.
+      if (display === "transcript") return request;
     } catch {
       // Optional suggestions must not interrupt the conversation.
     }
   });
 
   pi.registerCommand("next-prompt", {
-    description: "Show suggestion status and usage, or enable/disable suggestions with on/off",
+    description: "Show suggestion status, enable/disable, or select auto/editor/transcript mode",
     handler: async (args, ctx) => {
       try {
         const action = args.trim();
-        if (action && action !== "on" && action !== "off") {
-          ctx.ui.notify("Next-prompt usage: /next-prompt [on|off]", "warning");
+        const mode = NEXT_PROMPT_MODES.find((mode) => mode === action);
+        if (action && action !== "on" && action !== "off" && !mode) {
+          ctx.ui.notify(
+            "Next-prompt usage: /next-prompt [on|off|auto|editor|transcript]",
+            "warning",
+          );
           return;
         }
         if (action) {
           clear();
-          saveNextPromptEnabled(action === "on");
+          saveNextPromptSettings(mode ? { mode } : { enabled: action === "on" });
         }
-        const enabled =
-          utilitySettingsObject(readUtilitySettings(ctx).nextPrompt).enabled !== false;
+        const feature = utilitySettingsObject(readUtilitySettings(ctx).nextPrompt);
+        const enabled = feature.enabled !== false;
+        const { configured, display, available } = nextPromptMode(feature, ctx);
+        const overridden = action && (mode ? configured !== mode : enabled !== (action === "on"));
         ctx.ui.notify(
-          `Next-prompt ${enabled ? "on" : "off"}${action && enabled !== (action === "on") ? " (overridden by project settings)" : ""} · ${lastUsage}`,
+          `Next-prompt ${enabled ? "on" : "off"}${overridden ? " (overridden by project settings)" : ""} · ${configured === "auto" ? `auto (${display})` : configured}${available ? "" : " (unavailable here)"} · ${lastUsage}`,
           "info",
         );
       } catch (error) {

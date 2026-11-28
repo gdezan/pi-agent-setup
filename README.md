@@ -27,15 +27,15 @@ nothing on an unchanged rerun.
 
 ## Extensions
 
-| Extension                                                           | What it does                                                                                                  | Commands & shortcuts                                      |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| [`pi-footer`](extensions/pi-footer/index.ts)                        | Powerline-style composable footer                                                                             | `/footer`, `/footer-statuses`, `/footer-health`           |
-| [`pi-favorites-cycle`](extensions/pi-favorites-cycle/index.ts)      | Cycles `pi-model-pick` favorites (`model-picker-state.json`)                                                  | `Ctrl+P`, `Ctrl+Shift+P` (`Alt+P` on Windows/WSL)         |
-| [`pi-provider-usage`](extensions/pi-provider-usage/index.ts)        | Read-only quota meters (Cursor, Codex, OpenAI, Claude Code, OpenCode Go, xAI, Copilot, Antigravity, DeepSeek) | `/usage`, `/usage refresh`                                |
-| [`pi-session-autoname`](extensions/pi-session-autoname/index.ts)    | Background session naming via shared utility model                                                            | `/autoname`, `/autoname model`                            |
-| [`pi-next-prompt`](extensions/pi-next-prompt/index.ts)              | Dim next-prompt suggestions in empty editor (Pi 1.4.0+)                                                       | `/next-prompt` (`on`/`off`), `Tab` / `Right` to accept    |
-| [`pi-cache-observer`](extensions/pi-cache-observer/README.md)       | Prompt-cache hit-rate tracking, miss alerts, opt-in optimizer                                                 | `/cache`, `/cache doctor`, `/cache reset`, `/cache clear` |
-| [`pi-ask-user-question`](extensions/pi-ask-user-question/README.md) | Sequential `ask_user_question` tool and reply extractor                                                       | `/answer`                                                 |
+| Extension                                                           | What it does                                                                                                  | Commands & shortcuts                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| [`pi-footer`](extensions/pi-footer/index.ts)                        | Powerline-style composable footer                                                                             | `/footer`, `/footer-statuses`, `/footer-health`                                               |
+| [`pi-favorites-cycle`](extensions/pi-favorites-cycle/index.ts)      | Cycles `pi-model-pick` favorites (`model-picker-state.json`)                                                  | `Ctrl+P`, `Ctrl+Shift+P` (`Alt+P` on Windows/WSL)                                             |
+| [`pi-provider-usage`](extensions/pi-provider-usage/index.ts)        | Read-only quota meters (Cursor, Codex, OpenAI, Claude Code, OpenCode Go, xAI, Copilot, Antigravity, DeepSeek) | `/usage`, `/usage refresh`                                                                    |
+| [`pi-session-autoname`](extensions/pi-session-autoname/index.ts)    | Background session naming via shared utility model                                                            | `/autoname`, `/autoname model`                                                                |
+| [`pi-next-prompt`](extensions/pi-next-prompt/index.ts)              | Next-prompt suggestions in the editor or transcript (including T3 Code, Pi 1.4.0+)                            | `/next-prompt` (`on`/`off`/`auto`/`editor`/`transcript`), `Tab` / `Right` to accept in editor |
+| [`pi-cache-observer`](extensions/pi-cache-observer/README.md)       | Prompt-cache hit-rate tracking, miss alerts, opt-in optimizer                                                 | `/cache`, `/cache doctor`, `/cache reset`, `/cache clear`                                     |
+| [`pi-ask-user-question`](extensions/pi-ask-user-question/README.md) | Sequential `ask_user_question` tool and reply extractor                                                       | `/answer`                                                                                     |
 
 Curated third-party packages (`model-pick`, `workflow`, `plannotator`, `cursor`, `blackhole`, `fff`,
 `web-search`, `browser`, `observational-memory`) live in [`manifest.json`](manifest.json)—run
@@ -106,11 +106,18 @@ Both features share `utilityModel` in `<agent-dir>/settings.json` (default: `ope
 {
   "utilityModel": { "model": "openai/gpt-6-luna", "thinkingLevel": "low" },
   "sessionAutoname": { "enabled": true },
-  "nextPrompt": { "enabled": true }
+  "nextPrompt": { "enabled": true, "mode": "auto" }
 }
 ```
 
 Use `/autoname model <provider/id> [thinking]` to update both features at once.
+
+Next Prompt defaults to `auto`: ghost text in the terminal editor and a copyable system notice in T3
+Code and other RPC clients that display Pi notifications. Use `/next-prompt editor` or
+`/next-prompt transcript` to override the display mode, and `/next-prompt auto` to restore automatic
+selection. `/next-prompt on` and `/next-prompt off` toggle suggestions without changing the mode.
+Transcript mode waits up to 10 seconds for the suggestion before the turn settles; it does not add
+the suggestion to model context or submit it as a prompt.
 
 ### Provider usage notes
 

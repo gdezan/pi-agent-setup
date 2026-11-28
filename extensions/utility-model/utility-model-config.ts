@@ -130,13 +130,16 @@ export function saveUtilityModelConfig(
   writeUtilitySettings(path, mergeUtilityModelSettings(readUtilitySettingsFile(path), config));
 }
 
-export function saveNextPromptEnabled(
-  enabled: boolean,
+export const NEXT_PROMPT_MODES = ["auto", "editor", "transcript"] as const;
+export type NextPromptMode = (typeof NEXT_PROMPT_MODES)[number];
+
+export function saveNextPromptSettings(
+  update: { enabled?: boolean; mode?: NextPromptMode },
   path = join(getAgentDir(), "settings.json"),
 ): void {
   const settings = readUtilitySettingsFile(path);
   writeUtilitySettings(path, {
     ...settings,
-    nextPrompt: { ...utilitySettingsObject(settings.nextPrompt), enabled },
+    nextPrompt: { ...utilitySettingsObject(settings.nextPrompt), ...update },
   });
 }

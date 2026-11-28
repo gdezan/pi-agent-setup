@@ -22,8 +22,8 @@ export default function utilityModelTestProvider(pi: ExtensionAPI): void {
     })),
     streamSimple: (model, context, options) => {
       const stream = createAssistantMessageEventStream();
-      const system = getCurrentSystemPrompt(context.messages);
-      const kind = system.includes("Predict the next message")
+      const system = context.systemPrompt ?? getCurrentSystemPrompt(context.messages);
+      const kind = system.includes("Predict what the user would naturally type next")
         ? "suggestion"
         : system.includes("display names")
           ? "naming"
