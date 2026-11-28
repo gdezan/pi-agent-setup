@@ -112,12 +112,14 @@ Both features share `utilityModel` in `<agent-dir>/settings.json` (default: `ope
 
 Use `/autoname model <provider/id> [thinking]` to update both features at once.
 
-Next Prompt defaults to `auto`: ghost text in the terminal editor and a copyable system notice in T3
-Code and other RPC clients that display Pi notifications. Use `/next-prompt editor` or
+Next Prompt defaults to `auto`: ghost text in the terminal editor and a system notice in T3 Code and
+other RPC clients that display Pi notifications. Use `/next-prompt editor` or
 `/next-prompt transcript` to override the display mode, and `/next-prompt auto` to restore automatic
 selection. `/next-prompt on` and `/next-prompt off` toggle suggestions without changing the mode.
 Transcript mode waits up to 10 seconds for the suggestion before the turn settles; it does not add
-the suggestion to model context or submit it as a prompt.
+the suggestion to model context. Send `/use-next-prompt` to submit the latest transcript suggestion
+exactly as shown, without the `Next:` label. The command does nothing if the suggestion is no longer
+available in the current session.
 
 ### Provider usage notes
 

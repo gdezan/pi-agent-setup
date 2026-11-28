@@ -38,19 +38,25 @@ function nextPromptMode(settings: Record<string, unknown>, ctx: ExtensionContext
 
 export default function nextPrompt(pi: ExtensionAPI): void {
   let suggestion = "";
+  let transcriptSuggestion: { text: string; replyId: string; sessionId: string } | undefined;
   let pending: AbortController | undefined;
   let redraw = () => {};
   let lastUsage = "No suggestion request completed in this session";
   const attemptedReplies = new Set<string>();
   let restoreEditor: (() => void) | undefined;
 
-  const clear = (): void => {
+  const clearEditor = (): void => {
     pending?.abort();
     pending = undefined;
     if (suggestion) {
       suggestion = "";
       redraw();
     }
+  };
+
+  const clear = (): void => {
+    transcriptSuggestion = undefined;
+    clearEditor();
   };
 
   pi.on("session_start", (_event, ctx) => {
@@ -71,7 +77,7 @@ export default function nextPrompt(pi: ExtensionAPI): void {
         {
           getSuggestion: () => suggestion,
           isActive: () => Boolean(suggestion || pending),
-          clear,
+          clear: clearEditor,
           redraw,
         },
       );
@@ -148,6 +154,7 @@ export default function nextPrompt(pi: ExtensionAPI): void {
           );
           if (!text) return;
           if (display === "transcript") {
+            transcriptSuggestion = { text, replyId, sessionId };
             ctx.ui.notify(`Next: ${text}`, "info");
           } else {
             suggestion = text;
@@ -166,6 +173,34 @@ export default function nextPrompt(pi: ExtensionAPI): void {
     } catch {
       // Optional suggestions must not interrupt the conversation.
     }
+  });
+
+  pi.registerCommand("use-next-prompt", {
+    description: "Send the latest transcript suggestion as your next prompt",
+    handler: async (args, ctx) => {
+      if (args.trim()) {
+        ctx.ui.notify("Usage: /use-next-prompt", "warning");
+        return;
+      }
+      const feature = utilitySettingsObject(readUtilitySettings(ctx).nextPrompt);
+      const { display, available } = nextPromptMode(feature, ctx);
+      const next = transcriptSuggestion;
+      if (
+        !next ||
+        feature.enabled === false ||
+        !available ||
+        display !== "transcript" ||
+        next.sessionId !== ctx.sessionManager.getSessionId() ||
+        next.replyId !== nextPromptReplyId(ctx) ||
+        !ctx.isIdle() ||
+        ctx.hasPendingMessages()
+      ) {
+        ctx.ui.notify("No next prompt available.", "info");
+        return;
+      }
+      clear();
+      pi.sendUserMessage(next.text);
+    },
   });
 
   pi.registerCommand("next-prompt", {

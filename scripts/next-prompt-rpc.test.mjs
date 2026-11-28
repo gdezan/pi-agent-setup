@@ -109,8 +109,32 @@ test(
         .filter((role) => role !== "system"),
       ["user", "assistant"],
     );
+    let useResponse = false;
+    let useSettled = false;
+    const used = await send({ type: "prompt", message: "/use-next-prompt" }, (e, id) => {
+      if (e.type === "response" && e.id === id) useResponse = true;
+      if (e.type === "agent_settled") useSettled = true;
+      return useResponse && useSettled;
+    });
+    const userMessages = used.filter((e) => e.type === "message_end" && e.message.role === "user");
+    assert.equal(userMessages.length, 1);
+    const content = userMessages[0].message.content;
+    assert.equal(
+      typeof content === "string" ? content : content.map((part) => part.text).join(""),
+      "Yes, implement the fix",
+    );
     await command("/next-prompt editor");
     assert.deepEqual(suggestions(await prompt()), []);
+    const unavailable = await command("/use-next-prompt");
+    assert.ok(
+      unavailable.some(
+        (e) =>
+          e.type === "extension_ui_request" &&
+          e.method === "notify" &&
+          e.message === "No next prompt available.",
+      ),
+    );
+    assert.ok(!unavailable.some((e) => e.type === "agent_start"));
     await command("/next-prompt transcript");
     assert.deepEqual(suggestions(await prompt()), expected);
     await command("/next-prompt off");
